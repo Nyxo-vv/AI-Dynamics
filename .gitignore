@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+data/ai_dynamics.db
+data/archive/
+node_modules/
+frontend/dist/
+.DS_Store
