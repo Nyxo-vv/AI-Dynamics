@@ -1,0 +1,21 @@
+from pathlib import Path
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    GEMINI_API_KEY: str = ""
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.1"
+    DATABASE_PATH: str = str(Path(__file__).parent.parent / "data" / "ai_dynamics.db")
+
+    @property
+    def use_gemini(self) -> bool:
+        return bool(self.GEMINI_API_KEY)
+
+    model_config = {
+        "env_file": str(Path(__file__).parent.parent / ".env"),
+        "env_file_encoding": "utf-8",
+    }
+
+
+settings = Settings()

@@ -1,0 +1,19 @@
+[project]
+name = "ai-dynamics"
+version = "0.1.0"
+description = "AI industry daily briefing tool"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "feedparser>=6.0",
+    "apscheduler>=3.11",
+    "httpx>=0.28",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "python-dotenv>=1.1",
+    "google-genai>=1.10",
+    "ollama>=0.4",
+    "aiosqlite>=0.21",
+    "beautifulsoup4>=4.13",
+]
