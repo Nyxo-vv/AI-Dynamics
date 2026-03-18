@@ -87,7 +87,9 @@ class GenerateBriefingRequest(BaseModel):
 
 
 class FetchStatus(BaseModel):
-    status: str = "idle"  # idle | running
+    status: str = "idle"  # idle | fetching | processing | running
     total_sources: int = 0
     processed_sources: int = 0
     new_articles: int = 0
+    llm_total: int = 0
+    llm_processed: int = 0
