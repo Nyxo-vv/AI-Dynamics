@@ -1,10 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { FetchProgress } from "@/components/FetchProgress";
-import { triggerFetch } from "@/lib/api";
+import { triggerFetch, getBacklogStatus } from "@/lib/api";
 import BriefingPage from "@/pages/Briefing";
 import FeedPage from "@/pages/Feed";
 import StarredPage from "@/pages/Starred";
@@ -20,7 +20,23 @@ const TABS: { key: Page; label: string }[] = [
 function AppContent() {
   const [page, setPage] = useState<Page>("briefing");
   const [fetching, setFetching] = useState(false);
+  const [backlog, setBacklog] = useState<{ unprocessed: number; total: number } | null>(null);
   const { toast } = useToast();
+
+  // Poll backlog status every 10s
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const data = await getBacklogStatus();
+        setBacklog(data);
+      } catch {
+        // silent — backend may not be running
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleFetch = useCallback(async () => {
     setFetching(true);
@@ -81,6 +97,26 @@ function AppContent() {
       {fetching && (
         <div className="max-w-5xl mx-auto px-6 pt-3">
           <FetchProgress active={fetching} onComplete={handleFetchComplete} />
+        </div>
+      )}
+
+      {/* Backlog progress bar */}
+      {backlog && backlog.unprocessed > 0 && (
+        <div className="max-w-5xl mx-auto px-6 pt-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 flex items-center gap-3 text-sm text-amber-800">
+            <div className="flex-1">
+              待处理文章：{backlog.unprocessed} / {backlog.total} 篇
+              <span className="ml-2 opacity-60">
+                (已完成 {Math.round(((backlog.total - backlog.unprocessed) / backlog.total) * 100)}%)
+              </span>
+            </div>
+            <div className="w-32 h-1.5 bg-amber-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                style={{ width: `${((backlog.total - backlog.unprocessed) / backlog.total) * 100}%` }}
+              />
+            </div>
+          </div>
         </div>
       )}
 

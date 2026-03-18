@@ -12,6 +12,7 @@ import {
   generateBriefing,
   searchBriefings,
   updateArticle,
+  getBacklogStatus,
 } from "@/lib/api";
 import { CATEGORY_ORDER } from "@/lib/constants";
 import type { Briefing, BriefingStatus, Article } from "@/lib/types";
@@ -28,6 +29,7 @@ export default function BriefingPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<Article[] | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [dayBacklog, setDayBacklog] = useState<number>(0);
 
   // Load recent days status
   const loadDays = useCallback(async () => {
@@ -69,6 +71,21 @@ export default function BriefingPage() {
       setLoading(false);
     }
   }, [selectedDate, days, loadBriefing]);
+
+  // Poll daily backlog every hour
+  useEffect(() => {
+    const fetchBacklog = async () => {
+      try {
+        const data = await getBacklogStatus(selectedDate);
+        setDayBacklog(data.unprocessed);
+      } catch {
+        setDayBacklog(0);
+      }
+    };
+    fetchBacklog();
+    const interval = setInterval(fetchBacklog, 3600000);
+    return () => clearInterval(interval);
+  }, [selectedDate]);
 
   const handleGenerate = useCallback(async () => {
     setGenerating(true);
@@ -180,9 +197,14 @@ export default function BriefingPage() {
           )}
           {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
-        <span className="text-sm text-muted-foreground">
-          {isGenerated ? "已生成" : "未生成"} | 共 {articleCount} 条
-        </span>
+        <div className="text-sm text-muted-foreground text-right">
+          {dayBacklog > 0 && (
+            <div className="text-amber-600 mb-0.5">
+              {dayBacklog} 篇待处理
+            </div>
+          )}
+          <div>{isGenerated ? "已生成" : "未生成"} | 共 {articleCount} 条</div>
+        </div>
       </div>
 
       {/* Search */}
@@ -239,7 +261,7 @@ export default function BriefingPage() {
           {headlines.length > 0 && (
             <section>
               <h2 className="text-2xl font-bold mb-4">头条 Top {headlines.length}</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {headlines.map((article) => (
                   <ArticleCard
                     key={article.id}

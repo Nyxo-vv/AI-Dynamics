@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -5,7 +6,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import init_db
+from database import init_db, get_db
 from fetcher.cleanup import check_and_cleanup
 from fetcher.scheduler import start_scheduler, stop_scheduler, _check_startup_catchup
 from api.articles import router as articles_router
@@ -19,13 +20,55 @@ logging.basicConfig(
 )
 
 
+logger = logging.getLogger(__name__)
+
+
+async def _process_backlog():
+    """Background task: process unprocessed articles on startup."""
+    from llm.processor import process_unprocessed
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM articles WHERE title_zh IS NULL AND importance = 0"
+        )
+        count = (await cursor.fetchone())[0]
+    finally:
+        await db.close()
+
+    if count == 0:
+        return
+
+    logger.info("Found %d unprocessed articles, starting backlog processing...", count)
+
+    while True:
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM articles WHERE title_zh IS NULL AND importance = 0"
+            )
+            remaining = (await cursor.fetchone())[0]
+        finally:
+            await db.close()
+
+        if remaining == 0:
+            logger.info("Backlog processing complete")
+            break
+
+        result = await process_unprocessed(limit=200)
+        if result["processed"] == 0 and result["failed"] == 0:
+            break
+
+        logger.info("Backlog progress: %d remaining", remaining)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     await check_and_cleanup()
     start_scheduler()
-    # Don't block startup with catch-up fetch — run in background
-    # asyncio.create_task(_check_startup_catchup())
+    # Process backlog in background (non-blocking)
+    asyncio.create_task(_process_backlog())
     yield
     stop_scheduler()
 

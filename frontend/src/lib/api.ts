@@ -80,3 +80,8 @@ export function triggerFetch() {
 export function getFetchStatus() {
   return request<import("./types.ts").FetchStatus>("/fetch/status");
 }
+
+export function getBacklogStatus(date?: string) {
+  const params = date ? `?date=${date}` : "";
+  return request<{ unprocessed: number; total: number }>(`/fetch/backlog${params}`);
+}

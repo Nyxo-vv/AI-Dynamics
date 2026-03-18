@@ -26,6 +26,48 @@ async def fetch_status() -> FetchStatus:
     return _status
 
 
+@router.get("/backlog")
+async def backlog_status(date: str | None = None) -> dict:
+    """Get count of unprocessed articles (backlog).
+
+    If date is provided (YYYY-MM-DD), returns backlog for that briefing window
+    (previous day 09:00 ~ current day 09:00). Otherwise returns global backlog.
+    """
+    from database import get_db
+    db = await get_db()
+    try:
+        if date:
+            from datetime import datetime, timedelta
+            d = datetime.strptime(date, "%Y-%m-%d")
+            window_start = (d - timedelta(days=1)).strftime("%Y-%m-%d 09:00:00")
+            window_end = d.strftime("%Y-%m-%d 09:00:00")
+            cursor = await db.execute(
+                """SELECT COUNT(*) FROM articles
+                   WHERE title_zh IS NULL AND importance = 0
+                     AND REPLACE(REPLACE(COALESCE(published_at, fetched_at), 'T', ' '), '+00:00', '') >= ?
+                     AND REPLACE(REPLACE(COALESCE(published_at, fetched_at), 'T', ' '), '+00:00', '') < ?""",
+                (window_start, window_end),
+            )
+            unprocessed = (await cursor.fetchone())[0]
+            cursor = await db.execute(
+                """SELECT COUNT(*) FROM articles
+                   WHERE REPLACE(REPLACE(COALESCE(published_at, fetched_at), 'T', ' '), '+00:00', '') >= ?
+                     AND REPLACE(REPLACE(COALESCE(published_at, fetched_at), 'T', ' '), '+00:00', '') < ?""",
+                (window_start, window_end),
+            )
+            total = (await cursor.fetchone())[0]
+        else:
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM articles WHERE title_zh IS NULL AND importance = 0"
+            )
+            unprocessed = (await cursor.fetchone())[0]
+            cursor = await db.execute("SELECT COUNT(*) FROM articles")
+            total = (await cursor.fetchone())[0]
+    finally:
+        await db.close()
+    return {"unprocessed": unprocessed, "total": total}
+
+
 @router.post("/run")
 async def trigger_fetch() -> dict:
     """Manually trigger a fetch + LLM processing run."""

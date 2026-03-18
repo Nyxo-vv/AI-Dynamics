@@ -1,6 +1,6 @@
 # AI Dynamics — 全球 AI 行业动态追踪工具
 
-> 设计文档 v0.3 | 2026-03-17
+> 设计文档 v0.4 | 2026-03-18
 
 ## 1. 项目目标
 
@@ -113,37 +113,63 @@
 | 定时任务 | APScheduler | Python 原生，无需外部 cron |
 | RSS 解析 | feedparser | Python RSS 解析标准库 |
 | LLM (主) | Google Gemini API (gemini-2.0-flash) | 免费额度充足，质量好 |
-| LLM (备) | Ollama + Llama 3.1 (本地) | Gemini 额度用尽时自动切换，零成本 |
+| LLM (次) | Groq (llama-3.3-70b-versatile) | 免费 100K tokens/天，响应极快 |
+| LLM (三) | OpenRouter (多模型可选) | 聚合平台，提供多种免费模型 |
+| LLM (兜底) | Ollama (本地) | 所有云端额度耗尽时本地兜底 |
 | 后端端口 | 9100 | `http://localhost:9100` |
 | 前端端口 | 5173 | `http://localhost:5173`（Vite 默认） |
 
-#### 4.2.1 LLM 双引擎策略
+#### 4.2.1 LLM 多引擎策略
 
 ```
 请求 → Gemini API
          │
          ├─ 成功 → 返回结果
          │
-         └─ 失败 (429/额度耗尽/超时)
+         └─ 失败 (429/额度耗尽)
               │
-              └─ 自动降级 → Ollama (Llama 3.1 本地)
-                              │
-                              └─ 返回结果
+              └─ Groq API (自动重试 429)
+                   │
+                   ├─ 成功 → 返回结果
+                   │
+                   └─ 失败
+                        │
+                        └─ OpenRouter API (自动重试 429)
+                             │
+                             ├─ 成功 → 返回结果
+                             │
+                             └─ 失败
+                                  │
+                                  └─ Ollama (本地兜底)
+                                       │
+                                       └─ 返回结果
 ```
+
+**批量合并 Prompt：** 5 篇文章合并为一次 API 调用，返回 JSON 数组，API 调用次数减少 80%。批量失败时自动降级为逐篇处理。
 
 **配置方式（.env）：**
 ```env
-# Gemini API (主引擎，留空则直接使用 Ollama)
+# Gemini API (主引擎，留空则跳过)
 GEMINI_API_KEY=
 
-# Ollama (备用引擎，本地运行)
+# Groq API (次引擎，留空则跳过)
+GROQ_API_KEY=
+GROQ_MODEL=llama-3.3-70b-versatile
+
+# OpenRouter API (三引擎，留空则跳过)
+# 免费模型：meta-llama/llama-3.3-70b-instruct:free
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free
+
+# Ollama (兜底引擎，本地运行)
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.1
+OLLAMA_MODEL=llama3.2:3b
 ```
 
-- `GEMINI_API_KEY` 为空时，直接使用 Ollama，不尝试 Gemini
-- `GEMINI_API_KEY` 配置后，优先 Gemini，失败自动降级 Ollama
-- 两个引擎使用统一的 prompt 模板，输出格式一致
+- 各引擎 API Key 为空时自动跳过，不报错
+- 429 限流时自动解析 `retryDelay` 重试（最多 3 次），超限后降级到下一引擎
+- 所有引擎使用统一的 prompt 模板，输出格式一致
+- 启动时自动检测积压文章并在后台处理
 
 ### 4.3 抓取策略
 
@@ -151,6 +177,7 @@ OLLAMA_MODEL=llama3.1
 |---------|------|------|
 | 定时抓取 | 每天 **10:00** 和 **17:00** | APScheduler 定时任务，覆盖早晚两个信息高峰 |
 | 手动刷新 | 随时 | Dashboard 页面「立即刷新」按钮，后端收到请求后即时拉取全部 RSS |
+| 启动积压处理 | 后端启动时 | 自动检测未处理文章，后台批量处理（不阻塞 API） |
 
 - 后端启动时若已过当天的定时点但未执行过，自动补抓（同启动时自检逻辑）
 - 两种方式共用同一个抓取管线（拉 RSS → 去重 → LLM 处理 → 入库）
@@ -162,6 +189,7 @@ OLLAMA_MODEL=llama3.1
 |------|------|------|
 | `POST` | `/api/fetch/run` | 手动触发立即抓取 |
 | `GET` | `/api/fetch/status` | 查询当前抓取状态（idle / running / 进度） |
+| `GET` | `/api/fetch/backlog?date=` | 查询积压文章数（可选按日期窗口筛选） |
 
 ### 4.4 整体架构
 
@@ -176,9 +204,9 @@ OLLAMA_MODEL=llama3.1
 ┌────────────────────────────┴──────────────────────────────┐
 │                   FastAPI 后端 (:9100)                      │
 │  ┌────────────┐  ┌──────────────┐  ┌───────────────────┐  │
-│  │ REST API   │  │ 抓取调度器    │  │ LLM 双引擎         │  │
-│  │ /api/*     │  │ 10:00 + 17:00│  │ Gemini → Ollama   │  │
-│  │            │  │ + 手动刷新    │  │ 意译+分类+简报生成  │  │
+│  │ REST API   │  │ 抓取调度器    │  │ LLM 多引擎         │  │
+│  │ /api/*     │  │ 10:00 + 17:00│  │ Gemini→Groq→      │  │
+│  │            │  │ + 手动刷新    │  │ OpenRouter→Ollama  │  │
 │  └─────┬──────┘  └──────┬───────┘  └──────┬────────────┘  │
 │        │                │                 │               │
 │  ┌─────┴────────────────┴─────────────────┴─────────────┐ │
@@ -648,7 +676,7 @@ AI Dynamics/
 │   │   ├── scheduler.py     # 定时调度 (10:00 + 17:00)
 │   │   └── cleanup.py       # 月度数据清理 + 归档
 │   ├── llm/
-│   │   ├── engine.py        # LLM 双引擎管理 (Gemini + Ollama 切换)
+│   │   ├── engine.py        # LLM 多引擎管理 (Gemini → Groq → OpenRouter → Ollama)
 │   │   ├── processor.py     # LLM 统一处理 (意译 + 分类 + 评分)
 │   │   └── briefing.py      # LLM 简报生成器
 │   ├── api/

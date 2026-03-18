@@ -33,12 +33,12 @@ export function ArticleCard({ article, compact, onToggleStar }: ArticleCardProps
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[15px] font-medium text-foreground hover:text-accent-dark line-clamp-1"
+            className="text-[15px] font-medium text-foreground hover:text-accent-dark line-clamp-2"
           >
             {title}
           </a>
           {summary && (
-            <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">
+            <p className="text-sm text-muted-foreground line-clamp-3 mt-0.5">
               {summary}
             </p>
           )}
@@ -77,7 +77,7 @@ export function ArticleCard({ article, compact, onToggleStar }: ArticleCardProps
       </a>
 
       {summary && (
-        <p className="text-[15px] leading-relaxed text-text-tertiary mt-2 line-clamp-2">
+        <p className="text-[15px] leading-relaxed text-text-tertiary mt-2 line-clamp-4">
           {summary}
         </p>
       )}

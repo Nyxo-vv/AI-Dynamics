@@ -1,4 +1,4 @@
-"""LLM triple engine: Gemini (primary) → Groq (secondary) → Ollama (fallback).
+"""LLM multi-engine: Gemini → Groq → OpenRouter → Ollama.
 
 Provides a unified generate() interface that tries engines in order.
 Rate-limited engines (429) are retried before falling back.
@@ -76,6 +76,28 @@ async def _call_groq(prompt: str) -> str:
     return response.choices[0].message.content
 
 
+async def _call_openrouter(prompt: str) -> str:
+    """Call OpenRouter API (OpenAI-compatible). Raises on failure."""
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": settings.OPENROUTER_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.3,
+    }
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.post(url, headers=headers, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        if "choices" not in data or not data["choices"]:
+            error_msg = data.get("error", {}).get("message", str(data))
+            raise RuntimeError(f"OpenRouter returned no choices: {error_msg}")
+        return data["choices"][0]["message"]["content"]
+
+
 async def _call_ollama(prompt: str) -> str:
     """Call local Ollama. Raises on failure."""
     url = f"{settings.OLLAMA_BASE_URL}/api/generate"
@@ -92,9 +114,9 @@ async def _call_ollama(prompt: str) -> str:
 
 
 async def generate(prompt: str) -> str:
-    """Generate text using the triple-engine strategy.
+    """Generate text using the multi-engine strategy.
 
-    Priority: Gemini → Groq → Ollama.
+    Priority: Gemini → Groq → OpenRouter → Ollama.
     Rate-limited (429) engines are retried up to 3 times before falling back.
 
     Returns:
@@ -103,6 +125,8 @@ async def generate(prompt: str) -> str:
     Raises:
         RuntimeError: if all engines fail.
     """
+    errors = []
+
     # 1. Gemini (primary) — no retry on 429, quota is daily
     if settings.use_gemini:
         try:
@@ -110,6 +134,7 @@ async def generate(prompt: str) -> str:
             logger.debug("Gemini response OK (%d chars)", len(result))
             return result
         except Exception as exc:
+            errors.append(f"Gemini: {exc}")
             logger.warning("Gemini failed (%s), trying next engine", exc)
 
     # 2. Groq (secondary)
@@ -119,15 +144,27 @@ async def generate(prompt: str) -> str:
             logger.debug("Groq response OK (%d chars)", len(result))
             return result
         except Exception as exc:
-            logger.warning("Groq failed (%s), falling back to Ollama", exc)
+            errors.append(f"Groq: {exc}")
+            logger.warning("Groq failed (%s), trying next engine", exc)
 
-    # 3. Ollama (fallback, no retry needed — local)
+    # 3. OpenRouter (tertiary)
+    if settings.use_openrouter:
+        try:
+            result = await _call_with_retry(_call_openrouter, "OpenRouter", prompt)
+            logger.debug("OpenRouter response OK (%d chars)", len(result))
+            return result
+        except Exception as exc:
+            errors.append(f"OpenRouter: {exc}")
+            logger.warning("OpenRouter failed (%s), falling back to Ollama", exc)
+
+    # 4. Ollama (fallback, no retry needed — local)
     try:
         result = await _call_ollama(prompt)
         logger.debug("Ollama response OK (%d chars)", len(result))
         return result
     except Exception as exc:
-        raise RuntimeError(f"All LLM engines failed. Ollama error: {exc}") from exc
+        errors.append(f"Ollama: {exc}")
+        raise RuntimeError(f"All LLM engines failed: {'; '.join(errors)}") from exc
 
 
 async def generate_json(prompt: str) -> dict | list:
