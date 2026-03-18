@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import re
+from datetime import date
 
 import httpx
 from google import genai
@@ -22,6 +23,20 @@ GEMINI_MODEL = "gemini-2.0-flash"
 
 # Retry config for rate-limited (429) responses
 MAX_RETRIES = 3
+
+# Daily quota exhaustion tracking — skip engine for the rest of the day
+_daily_exhausted: dict[str, date] = {}  # engine_name -> date when exhausted
+
+
+def _mark_daily_exhausted(engine: str):
+    """Mark an engine as exhausted for today."""
+    _daily_exhausted[engine] = date.today()
+    logger.warning("%s daily quota exhausted, skipping for the rest of today", engine)
+
+
+def _is_daily_exhausted(engine: str) -> bool:
+    """Check if an engine is exhausted today."""
+    return _daily_exhausted.get(engine) == date.today()
 
 
 def _parse_retry_delay(exc: Exception) -> float | None:
@@ -127,33 +142,45 @@ async def generate(prompt: str) -> str:
     """
     errors = []
 
-    # 1. Gemini (primary) — no retry on 429, quota is daily
-    if settings.use_gemini:
+    def _is_daily_quota_error(exc: Exception) -> bool:
+        """Check if error indicates daily quota exhaustion (not just per-minute rate limit)."""
+        text = str(exc).lower()
+        return ("per day" in text or "per_day" in text or "PerDay" in str(exc)
+                or "daily" in text or "quota exceeded" in text)
+
+    # 1. Gemini (primary)
+    if settings.use_gemini and not _is_daily_exhausted("gemini"):
         try:
             result = await _call_gemini(prompt)
             logger.debug("Gemini response OK (%d chars)", len(result))
             return result
         except Exception as exc:
+            if _is_daily_quota_error(exc):
+                _mark_daily_exhausted("gemini")
             errors.append(f"Gemini: {exc}")
             logger.warning("Gemini failed (%s), trying next engine", exc)
 
     # 2. Groq (secondary)
-    if settings.use_groq:
+    if settings.use_groq and not _is_daily_exhausted("groq"):
         try:
             result = await _call_with_retry(_call_groq, "Groq", prompt)
             logger.debug("Groq response OK (%d chars)", len(result))
             return result
         except Exception as exc:
+            if _is_daily_quota_error(exc):
+                _mark_daily_exhausted("groq")
             errors.append(f"Groq: {exc}")
             logger.warning("Groq failed (%s), trying next engine", exc)
 
     # 3. OpenRouter (tertiary)
-    if settings.use_openrouter:
+    if settings.use_openrouter and not _is_daily_exhausted("openrouter"):
         try:
             result = await _call_with_retry(_call_openrouter, "OpenRouter", prompt)
             logger.debug("OpenRouter response OK (%d chars)", len(result))
             return result
         except Exception as exc:
+            if _is_daily_quota_error(exc):
+                _mark_daily_exhausted("openrouter")
             errors.append(f"OpenRouter: {exc}")
             logger.warning("OpenRouter failed (%s), falling back to Ollama", exc)
 

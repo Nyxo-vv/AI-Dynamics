@@ -66,6 +66,20 @@ async def init_db():
             )
         """)
 
+        # URL dedup table — survives article deletion so we never re-fetch old articles
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS seen_urls (
+                url     TEXT PRIMARY KEY,
+                seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Backfill: ensure all existing article URLs are in seen_urls
+        await db.execute("""
+            INSERT OR IGNORE INTO seen_urls (url)
+            SELECT url FROM articles
+        """)
+
         await db.execute("CREATE INDEX IF NOT EXISTS idx_articles_url ON articles(url)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_at)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_articles_source ON articles(source_id)")

@@ -181,20 +181,19 @@ export default function BriefingPage() {
       {/* Status bar + generate button */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {!isGenerated && (
-            <Button
-              onClick={handleGenerate}
-              disabled={generating || articleCount === 0}
-              size="sm"
-            >
-              {generating ? (
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4 mr-1.5" />
-              )}
-              {generating ? "生成中..." : "生成今日简报"}
-            </Button>
-          )}
+          <Button
+            onClick={handleGenerate}
+            disabled={generating || articleCount === 0}
+            size="sm"
+            variant={isGenerated ? "outline" : "default"}
+          >
+            {generating ? (
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-1.5" />
+            )}
+            {generating ? "生成中..." : isGenerated ? "更新当日简报" : "生成今日简报"}
+          </Button>
           {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
         <div className="text-sm text-muted-foreground text-right">

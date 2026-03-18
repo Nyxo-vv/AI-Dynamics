@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     OPENROUTER_API_KEY: str = ""
-    OPENROUTER_MODEL: str = "meta-llama/llama-3.3-70b-instruct:free"
+    OPENROUTER_MODEL: str = "qwen/qwen3-coder:free"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.1"
     DATABASE_PATH: str = str(Path(__file__).parent.parent / "data" / "ai_dynamics.db")

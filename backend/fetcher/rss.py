@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import feedparser
@@ -182,12 +182,24 @@ async def fetch_single_source(
             if not url or not title:
                 continue
 
-            # Dedup by URL
+            # Dedup by URL (check seen_urls so deleted articles aren't re-fetched)
             cursor = await db.execute(
-                "SELECT 1 FROM articles WHERE url = ?", (url,)
+                "SELECT 1 FROM seen_urls WHERE url = ?", (url,)
             )
             if await cursor.fetchone():
                 continue
+
+            # Skip articles older than 7 days — they won't appear in briefings
+            published_at = _parse_published(entry)
+            if published_at:
+                try:
+                    pub_dt = datetime.fromisoformat(published_at)
+                    if pub_dt < datetime.now(timezone.utc) - timedelta(days=7):
+                        # Still record URL to avoid re-checking next time
+                        await db.execute("INSERT OR IGNORE INTO seen_urls (url) VALUES (?)", (url,))
+                        continue
+                except (ValueError, TypeError):
+                    pass
 
             # Optional pre-filter (e.g. arXiv keyword matching)
             if filter_fn and not await filter_fn(entry):
@@ -216,6 +228,10 @@ async def fetch_single_source(
                     language,
                     published_at,
                 ),
+            )
+            # Record URL so it won't be re-fetched even if article is later deleted
+            await db.execute(
+                "INSERT OR IGNORE INTO seen_urls (url) VALUES (?)", (url,)
             )
             new_count += 1
 

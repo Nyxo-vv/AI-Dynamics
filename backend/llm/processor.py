@@ -26,7 +26,7 @@ MAX_CONTENT_CHARS = 3000
 MAX_CONCURRENCY = 5
 
 # Batch processing: how many articles per single LLM call
-BATCH_SIZE = 5
+BATCH_SIZE = 10
 
 # ---- Low-value article filter (skip before LLM) ----
 # Articles matching these patterns are noise — mark as importance=1, skip LLM
@@ -97,6 +97,18 @@ def _titles_similar(a: str, b: str) -> bool:
 
 VALID_TAGS = {"research", "product", "opensource", "news", "funding", "policy", "community"}
 
+# Japanese kana + known garbled Chinese patterns
+_GARBLED_RE = re.compile(
+    r"[\u3040-\u309F\u30A0-\u30FF]"  # Hiragana + Katakana
+    r"|服加.*宝统|和提为访|罤|邭|犸|徛|帡|曈|穹|絷|穽|徖|雩|嶸|罷|昮"
+)
+
+
+def _is_garbled(text: str) -> bool:
+    """Check if translated text contains garbled/Japanese characters."""
+    return bool(_GARBLED_RE.search(text))
+
+
 async def _find_similar_processed(db, norm_title: str, exclude_id: int):
     """Find an already-processed article with a similar title.
 
@@ -121,67 +133,50 @@ async def _find_similar_processed(db, norm_title: str, exclude_id: int):
 
 
 PROCESS_PROMPT = """\
-You are an AI news analyst. Analyze the following article and return a JSON object with these fields:
+AI news analyst. Return JSON object for this article:
+- "title_zh": Chinese title (keep proper nouns in English like GPT-5, OpenAI)
+- "summary_zh": 2-3 sentence Chinese summary, keep technical terms in English
+- "tags": 1-3 from ["research","product","opensource","news","funding","policy","community"]
+- "importance": 1-5 (5=major breakthrough, 4=significant, 3=noteworthy, 2=routine, 1=noise)
+- "related_links": [{{"label":"..","url":".."}}] for paper/GitHub/demo links. [] if none.
 
-1. "title_zh": Translate the title into natural, fluent Chinese. Keep proper nouns in English (e.g., GPT-5, LLaMA, OpenAI, Transformer, RLHF). This should convey the meaning, not be a word-for-word translation.
-2. "summary_zh": Write a 2-3 sentence Chinese summary highlighting the core information. Use natural Chinese expressions. Keep technical terms and proper nouns in English.
-3. "tags": An array of 1-3 tags from this set: ["research", "product", "opensource", "news", "funding", "policy", "community"]. Pick the most relevant.
-4. "importance": An integer from 1 to 5:
-   - 5: Major breakthrough or industry-shaping announcement
-   - 4: Significant development worth attention
-   - 3: Noteworthy update
-   - 2: Routine update or minor news
-   - 1: Low relevance or noise
-5. "related_links": An array of objects {{"label": "...", "url": "..."}} for any resource links found in the content (paper PDFs, GitHub repos, demos, model pages). Empty array if none found.
-
-IMPORTANT: Return ONLY valid JSON, no other text.
+Return ONLY valid JSON.
 
 ---
-Source: {source_name}
-Title: {title}
-URL: {url}
-Content (truncated):
+Source: {source_name} | Title: {title} | URL: {url}
 {content}
 ---
 """
 
 PROCESS_PROMPT_ZH = """\
-You are an AI news analyst. Analyze the following Chinese article and return a JSON object with these fields:
+AI news analyst. Return JSON object for this Chinese article:
+- "title_zh": keep original title as-is
+- "summary_zh": 2-3 sentence Chinese summary
+- "tags": 1-3 from ["research","product","opensource","news","funding","policy","community"]
+- "importance": 1-5 (5=major breakthrough, 4=significant, 3=noteworthy, 2=routine, 1=noise)
+- "related_links": [{{"label":"..","url":".."}}] for paper/GitHub/demo links. [] if none.
 
-1. "title_zh": Use the original title as-is (it's already in Chinese).
-2. "summary_zh": Write a 2-3 sentence Chinese summary highlighting the core information.
-3. "tags": An array of 1-3 tags from this set: ["research", "product", "opensource", "news", "funding", "policy", "community"]. Pick the most relevant.
-4. "importance": An integer from 1 to 5:
-   - 5: Major breakthrough or industry-shaping announcement
-   - 4: Significant development worth attention
-   - 3: Noteworthy update
-   - 2: Routine update or minor news
-   - 1: Low relevance or noise
-5. "related_links": An array of objects {{"label": "...", "url": "..."}} for any resource links found in the content (paper PDFs, GitHub repos, demos, model pages). Empty array if none found.
-
-IMPORTANT: Return ONLY valid JSON, no other text.
+Return ONLY valid JSON.
 
 ---
-Title: {title}
-URL: {url}
-Content (truncated):
+Title: {title} | URL: {url}
 {content}
 ---
 """
 
 
 BATCH_PROMPT = """\
-You are an AI news analyst. Analyze each of the following articles and return a JSON ARRAY with one object per article, in the same order.
+AI news analyst. Return a JSON ARRAY ({count} objects, same order as input).
 
-Each object must have these fields:
-- "id": the article ID (integer, copy from input)
-- "title_zh": Translate the title into natural, fluent Chinese. Keep proper nouns in English.
-- "summary_zh": 2-3 sentence Chinese summary highlighting the core information.
-- "tags": array of 1-3 tags from ["research", "product", "opensource", "news", "funding", "policy", "community"]
-- "importance": integer 1-5 (5=major breakthrough, 4=significant, 3=noteworthy, 2=routine, 1=noise)
-- "related_links": array of {{"label": "...", "url": "..."}} for resource links found in content. Empty array if none.
+Fields per object:
+- "id": article ID (copy from input)
+- "title_zh": Chinese title (keep proper nouns in English like GPT-5, OpenAI). If already Chinese, keep as-is.
+- "summary_zh": 2-3 sentence Chinese summary. Keep technical terms in English.
+- "tags": 1-3 from ["research","product","opensource","news","funding","policy","community"]
+- "importance": 1-5 (5=major breakthrough, 4=significant, 3=noteworthy, 2=routine, 1=noise)
+- "related_links": [{{"label":"..","url":".."}}] for paper/GitHub/demo links. [] if none.
 
-IMPORTANT: Return ONLY a valid JSON array, no other text. The array must have exactly {count} objects.
+Return ONLY valid JSON array.
 
 ---
 {articles_text}
@@ -190,12 +185,20 @@ IMPORTANT: Return ONLY a valid JSON array, no other text. The array must have ex
 
 
 async def _save_llm_result(db, article_id: int, result: dict) -> bool:
-    """Save a single LLM result dict to the database."""
+    """Save a single LLM result dict to the database.
+
+    Returns False if the translation is detected as garbled.
+    """
     title_zh = result.get("title_zh", "")
     summary_zh = result.get("summary_zh", "")
     tags = result.get("tags", [])
     importance = result.get("importance") or 0
     related_links = result.get("related_links", [])
+
+    # Reject garbled translations
+    if _is_garbled(title_zh or "") or _is_garbled(summary_zh or ""):
+        logger.warning("Rejected garbled translation for article %d: %s", article_id, (title_zh or "")[:50])
+        return False
 
     tags = [t for t in (tags if isinstance(tags, list) else []) if t in VALID_TAGS]
     if not tags:
@@ -234,13 +237,13 @@ async def process_article_batch(article_rows: list[dict]) -> dict[str, int]:
     # Build combined prompt
     parts = []
     for a in article_rows:
-        content = (a["content"] or "")[:MAX_CONTENT_CHARS]
+        content = (a["content"] or "")[:800]
+        lang_hint = " [ZH-keep title]" if a.get("language") == "zh" else ""
         parts.append(
-            f"[Article ID:{a['id']}]\n"
-            f"Source: {a['source_name']}\n"
+            f"[ID:{a['id']}]{lang_hint} {a['source_name']}\n"
             f"Title: {a['title']}\n"
             f"URL: {a['url']}\n"
-            f"Content: {content[:800]}\n"
+            f"{content}\n"
         )
 
     prompt = BATCH_PROMPT.format(
