@@ -24,11 +24,33 @@ logger = logging.getLogger(__name__)
 
 
 async def _process_backlog():
-    """Background task: process unprocessed articles on startup."""
+    """Background task: process unprocessed articles on startup.
+
+    Only processes articles from the last 7 days. Older unprocessed
+    articles are deleted as they are outside the display window.
+    """
     from llm.processor import process_unprocessed
 
     db = await get_db()
     try:
+        # Delete unprocessed articles older than 7 days
+        await db.execute(
+            """DELETE FROM article_tags WHERE article_id IN (
+                SELECT id FROM articles
+                WHERE title_zh IS NULL AND importance = 0
+                  AND COALESCE(published_at, fetched_at) < datetime('now', '-7 days')
+            )"""
+        )
+        cursor = await db.execute(
+            """DELETE FROM articles
+               WHERE title_zh IS NULL AND importance = 0
+                 AND COALESCE(published_at, fetched_at) < datetime('now', '-7 days')"""
+        )
+        if cursor.rowcount > 0:
+            await db.commit()
+            logger.info("Deleted %d old unprocessed articles (>7 days)", cursor.rowcount)
+
+        # Count remaining
         cursor = await db.execute(
             "SELECT COUNT(*) FROM articles WHERE title_zh IS NULL AND importance = 0"
         )
@@ -39,7 +61,7 @@ async def _process_backlog():
     if count == 0:
         return
 
-    logger.info("Found %d unprocessed articles, starting backlog processing...", count)
+    logger.info("Found %d unprocessed articles (last 7 days), starting backlog processing...", count)
 
     while True:
         db = await get_db()
