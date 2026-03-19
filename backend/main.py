@@ -8,6 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db, get_db
 from fetcher.cleanup import check_and_cleanup
+
+# Shared event: set when briefing generation is in progress
+# Backlog processing pauses while this is set
+briefing_in_progress = asyncio.Event()
 from fetcher.scheduler import start_scheduler, stop_scheduler, _check_startup_catchup
 from api.articles import router as articles_router
 from api.sources import router as sources_router
@@ -64,6 +68,17 @@ async def _process_backlog():
     logger.info("Found %d unprocessed articles (last 7 days), starting backlog processing...", count)
 
     while True:
+        # Pause if a manual fetch or briefing generation is running
+        from api.fetch import get_fetch_status
+        if get_fetch_status().status != "idle":
+            logger.info("Backlog paused: manual fetch in progress")
+            await asyncio.sleep(10)
+            continue
+        if briefing_in_progress.is_set():
+            logger.info("Backlog paused: briefing generation in progress")
+            await asyncio.sleep(5)
+            continue
+
         db = await get_db()
         try:
             cursor = await db.execute(
@@ -77,6 +92,7 @@ async def _process_backlog():
             logger.info("Backlog processing complete")
             break
 
+        # process_unprocessed already orders by newest first
         result = await process_unprocessed(limit=200)
         if result["processed"] == 0 and result["failed"] == 0:
             break

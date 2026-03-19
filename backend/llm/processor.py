@@ -15,15 +15,15 @@ import re
 from typing import Any
 
 from database import get_db
-from llm.engine import generate_json
+from llm.engine import generate_json, generate_quality_ollama
 
 logger = logging.getLogger(__name__)
 
 # Truncate content to avoid excessive token usage
 MAX_CONTENT_CHARS = 3000
 
-# Concurrent LLM requests (Gemini free: 15 RPM, stay under limit)
-MAX_CONCURRENCY = 5
+# Concurrent LLM requests — keep at 1 for free-tier rate limits
+MAX_CONCURRENCY = 1
 
 # Batch processing: how many articles per single LLM call
 BATCH_SIZE = 10
@@ -184,10 +184,45 @@ Return ONLY valid JSON array.
 """
 
 
-async def _save_llm_result(db, article_id: int, result: dict) -> bool:
+async def _retry_with_quality_model(article_row: dict) -> dict | None:
+    """Retry a single article with the higher-quality Ollama model.
+
+    Returns parsed JSON result or None on failure.
+    """
+    title = article_row.get("title", "")
+    url = article_row.get("url", "")
+    content = (article_row.get("content") or "")[:MAX_CONTENT_CHARS]
+    language = article_row.get("language", "")
+    source_name = article_row.get("source_name", "")
+
+    if language == "zh":
+        prompt = PROCESS_PROMPT_ZH.format(title=title, url=url, content=content)
+    else:
+        prompt = PROCESS_PROMPT.format(
+            source_name=source_name, title=title, url=url, content=content,
+        )
+
+    try:
+        raw = await generate_quality_ollama(prompt)
+        text = raw.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip().startswith("```"):
+                lines = lines[:-1]
+            text = "\n".join(lines)
+        return json.loads(text)
+    except Exception as exc:
+        logger.warning("Quality model retry failed: %s", exc)
+        return None
+
+
+async def _save_llm_result(db, article_id: int, result: dict, article_row: dict | None = None) -> bool:
     """Save a single LLM result dict to the database.
 
-    Returns False if the translation is detected as garbled.
+    If garbled text is detected and article_row is provided, retries with the
+    higher-quality Ollama model before giving up.
     """
     title_zh = result.get("title_zh", "")
     summary_zh = result.get("summary_zh", "")
@@ -195,10 +230,25 @@ async def _save_llm_result(db, article_id: int, result: dict) -> bool:
     importance = result.get("importance") or 0
     related_links = result.get("related_links", [])
 
-    # Reject garbled translations
+    # Reject garbled translations — retry with quality model
     if _is_garbled(title_zh or "") or _is_garbled(summary_zh or ""):
-        logger.warning("Rejected garbled translation for article %d: %s", article_id, (title_zh or "")[:50])
-        return False
+        logger.warning("Garbled translation for article %d: %s, retrying with quality model", article_id, (title_zh or "")[:50])
+        if article_row:
+            retry_result = await _retry_with_quality_model(article_row)
+            if retry_result:
+                title_zh = retry_result.get("title_zh", "")
+                summary_zh = retry_result.get("summary_zh", "")
+                tags = retry_result.get("tags", tags)
+                importance = retry_result.get("importance", importance) or importance
+                related_links = retry_result.get("related_links", related_links)
+                if _is_garbled(title_zh or "") or _is_garbled(summary_zh or ""):
+                    logger.warning("Quality model also garbled for article %d, giving up", article_id)
+                    return False
+                logger.info("Quality model retry succeeded for article %d", article_id)
+            else:
+                return False
+        else:
+            return False
 
     tags = [t for t in (tags if isinstance(tags, list) else []) if t in VALID_TAGS]
     if not tags:
@@ -291,7 +341,7 @@ async def process_article_batch(article_rows: list[dict]) -> dict[str, int]:
         for a in article_rows:
             aid = a["id"]
             if aid in result_map:
-                await _save_llm_result(db, aid, result_map[aid])
+                await _save_llm_result(db, aid, result_map[aid], article_row=a)
                 title_zh = result_map[aid].get("title_zh", "")
                 logger.info("Batch processed article %d: %s", aid, title_zh[:40])
                 processed += 1
@@ -407,6 +457,26 @@ async def process_article(article_id: int) -> bool:
         tags = result.get("tags", [])
         importance = result.get("importance", 0)
         related_links = result.get("related_links", [])
+
+        # Garbled text retry with quality model
+        if _is_garbled(title_zh or "") or _is_garbled(summary_zh or ""):
+            logger.warning("Garbled in article %d, retrying with quality model", article_id)
+            article_row = {
+                "title": title, "url": url, "content": content,
+                "language": language, "source_name": source_name,
+            }
+            retry_result = await _retry_with_quality_model(article_row)
+            if retry_result:
+                title_zh = retry_result.get("title_zh", title_zh)
+                summary_zh = retry_result.get("summary_zh", summary_zh)
+                tags = retry_result.get("tags", tags)
+                importance = retry_result.get("importance", importance)
+                related_links = retry_result.get("related_links", related_links)
+                if _is_garbled(title_zh or "") or _is_garbled(summary_zh or ""):
+                    logger.warning("Quality model also garbled for article %d", article_id)
+                    return False
+            else:
+                return False
 
         # Sanitize tags
         tags = [t for t in tags if t in VALID_TAGS]
@@ -541,8 +611,10 @@ async def _process_batch(rows: list, on_progress=None) -> dict[str, int]:
     # Split into chunks of BATCH_SIZE
     chunks = [need_llm[i:i + BATCH_SIZE] for i in range(0, len(need_llm), BATCH_SIZE)]
 
-    async def _process_chunk(chunk):
+    async def _process_chunk(chunk, delay: float = 0):
         nonlocal processed, failed
+        if delay > 0:
+            await asyncio.sleep(delay)
         async with sem:
             result = await process_article_batch(chunk)
         async with lock:
@@ -551,7 +623,11 @@ async def _process_batch(rows: list, on_progress=None) -> dict[str, int]:
             if on_progress:
                 on_progress(processed, failed)
 
-    await asyncio.gather(*[_process_chunk(c) for c in chunks])
+    # Process chunks sequentially with delay to respect free-tier rate limits
+    for i, c in enumerate(chunks):
+        if i > 0:
+            await asyncio.sleep(10.0)
+        await _process_chunk(c)
 
     logger.info("Processing complete: %d processed, %d failed", processed, failed)
     return {"processed": processed, "failed": failed}
@@ -561,14 +637,14 @@ async def process_unprocessed(*, limit: int = 50, on_progress=None) -> dict[str,
     """Process all articles that haven't been through LLM yet.
 
     Articles with title_zh IS NULL and importance = 0 are considered unprocessed.
-    Processes up to MAX_CONCURRENCY articles in parallel.
+    Order: today's articles first, then backlog from newest to oldest.
     """
     db = await get_db()
     try:
         cursor = await db.execute(
             """SELECT id FROM articles
                WHERE title_zh IS NULL AND importance = 0
-               ORDER BY published_at DESC
+               ORDER BY COALESCE(fetched_at, published_at) DESC
                LIMIT ?""",
             (limit,),
         )
@@ -594,7 +670,7 @@ async def process_unprocessed_since(*, since: str, on_progress=None) -> dict[str
             """SELECT id FROM articles
                WHERE title_zh IS NULL AND importance = 0
                  AND fetched_at >= ?
-               ORDER BY published_at DESC""",
+               ORDER BY COALESCE(fetched_at, published_at) DESC""",
             (since,),
         )
         rows = await cursor.fetchall()

@@ -17,7 +17,13 @@ router = APIRouter(prefix="/api/briefings", tags=["briefings"])
 
 @router.post("/generate")
 async def api_generate_briefing(req: GenerateBriefingRequest) -> dict:
-    """Generate a daily briefing for the specified date."""
+    """Generate a daily briefing for the specified date.
+
+    Pauses backlog processing while generating to prioritize the briefing.
+    """
+    from main import briefing_in_progress
+
+    briefing_in_progress.set()
     try:
         result = await generate_briefing(req.date)
         return result
@@ -26,6 +32,8 @@ async def api_generate_briefing(req: GenerateBriefingRequest) -> dict:
     except Exception as exc:
         logger.error("Briefing generation failed for %s: %s", req.date, exc)
         raise HTTPException(status_code=500, detail=f"Generation failed: {exc}")
+    finally:
+        briefing_in_progress.clear()
 
 
 @router.get("/recent")

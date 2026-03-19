@@ -1,6 +1,6 @@
 # AI Dynamics — 全球 AI 行业动态追踪工具
 
-> 设计文档 v0.4 | 2026-03-18
+> 设计文档 v0.5 | 2026-03-19
 
 ## 1. 项目目标
 
@@ -112,9 +112,9 @@
 | 数据库 | SQLite | 零配置，单文件，个人工具足够 |
 | 定时任务 | APScheduler | Python 原生，无需外部 cron |
 | RSS 解析 | feedparser | Python RSS 解析标准库 |
-| LLM (主) | Google Gemini API (gemini-2.0-flash) | 免费额度充足，质量好 |
-| LLM (次) | Groq (llama-3.3-70b-versatile) | 免费 100K tokens/天，响应极快 |
-| LLM (三) | OpenRouter (多模型可选) | 聚合平台，提供多种免费模型 |
+| LLM (主) | OpenRouter (多 Key × 多模型轮换) | 聚合平台，免费模型丰富，Key+模型双重轮换最大化吞吐 |
+| LLM (次) | Groq (llama-3.3-70b-versatile) | 免费额度，响应极快 |
+| LLM (备) | Google Gemini API (gemini-2.0-flash) | 当前已禁用（免费额度耗尽），可随时恢复 |
 | LLM (兜底) | Ollama (本地) | 所有云端额度耗尽时本地兜底 |
 | 后端端口 | 9100 | `http://localhost:9100` |
 | 前端端口 | 5173 | `http://localhost:5173`（Vite 默认） |
@@ -122,11 +122,14 @@
 #### 4.2.1 LLM 多引擎策略
 
 ```
-请求 → Gemini API
+请求 → OpenRouter (Key × Model 轮换)
+         │
+         │  Key #1 + Model A → 429? → Key #2 + Model A → 429?
+         │  → Key #1 + Model B → ... 遍历所有组合
          │
          ├─ 成功 → 返回结果
          │
-         └─ 失败 (429/额度耗尽)
+         └─ 全部组合失败
               │
               └─ Groq API (自动重试 429)
                    │
@@ -134,32 +137,43 @@
                    │
                    └─ 失败
                         │
-                        └─ OpenRouter API (自动重试 429)
+                        └─ Ollama (本地兜底)
                              │
-                             ├─ 成功 → 返回结果
-                             │
-                             └─ 失败
-                                  │
-                                  └─ Ollama (本地兜底)
-                                       │
-                                       └─ 返回结果
+                             └─ 返回结果
 ```
 
-**批量合并 Prompt：** 5 篇文章合并为一次 API 调用，返回 JSON 数组，API 调用次数减少 80%。批量失败时自动降级为逐篇处理。
+**OpenRouter 多 Key × 多模型轮换：**
+- 支持配置多个 API Key（逗号分隔），每个 Key 的速率限制独立
+- 支持配置多个免费模型（逗号分隔），不同模型的限额独立
+- 请求时轮换使用所有 (Key, Model) 组合（round-robin），某个组合 429 自动切换下一个
+- 例：2 Key × 3 模型 = 6 种组合，大幅提高免费额度利用率
+
+**批量合并 Prompt：** 10 篇文章合并为一次 API 调用，返回 JSON 数组，大幅减少 API 调用次数。批量失败时自动降级为逐篇处理。
+
+**速率控制：**
+- 并发数：1（串行处理，避免免费账户并发限制）
+- 批次间隔：10 秒
+- Key 切换间隔：2 秒
+- 429 重试：最多 5 次，每次等待 15 秒
+- 日额度耗尽检测：自动标记引擎为当日耗尽，跳过后续调用
+
+**处理优先级：**
+- 今天的文章优先处理，积压文章按时间由近到远
+- 手动 fetch 运行时，积压处理自动暂停让路
 
 **配置方式（.env）：**
 ```env
-# Gemini API (主引擎，留空则跳过)
-GEMINI_API_KEY=
+# OpenRouter API (主引擎，多 Key 逗号分隔)
+OPENROUTER_API_KEYS=sk-or-v1-key1,sk-or-v1-key2
+# 多模型逗号分隔，429 时自动轮换
+OPENROUTER_MODELS=meta-llama/llama-3.3-70b-instruct:free,mistralai/mistral-small-3.1-24b-instruct:free,google/gemma-3-27b-it:free
 
 # Groq API (次引擎，留空则跳过)
 GROQ_API_KEY=
 GROQ_MODEL=llama-3.3-70b-versatile
 
-# OpenRouter API (三引擎，留空则跳过)
-# 免费模型：meta-llama/llama-3.3-70b-instruct:free
-OPENROUTER_API_KEY=
-OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free
+# Gemini API (当前已禁用，留空则跳过)
+GEMINI_API_KEY=
 
 # Ollama (兜底引擎，本地运行)
 OLLAMA_BASE_URL=http://localhost:11434
@@ -167,9 +181,15 @@ OLLAMA_MODEL=llama3.2:3b
 ```
 
 - 各引擎 API Key 为空时自动跳过，不报错
-- 429 限流时自动解析 `retryDelay` 重试（最多 3 次），超限后降级到下一引擎
+- 429 限流时自动解析 `retryDelay` 重试（最多 5 次），超限后降级到下一引擎
 - 所有引擎使用统一的 prompt 模板，输出格式一致
-- 启动时自动检测积压文章并在后台处理
+- 成功日志记录使用的引擎和模型，便于追踪
+- 启动时自动检测积压文章并在后台处理（最新优先）
+
+**任务优先级（高 → 低）：**
+1. **简报生成/更新** — 用户点击「生成/更新简报」时，积压处理自动暂停让路
+2. **手动抓取** — 用户点击「立即刷新」时，积压处理自动暂停让路
+3. **积压文章处理** — 后台自动进行，按时间由近到远处理
 
 ### 4.3 抓取策略
 
@@ -205,8 +225,8 @@ OLLAMA_MODEL=llama3.2:3b
 │                   FastAPI 后端 (:9100)                      │
 │  ┌────────────┐  ┌──────────────┐  ┌───────────────────┐  │
 │  │ REST API   │  │ 抓取调度器    │  │ LLM 多引擎         │  │
-│  │ /api/*     │  │ 10:00 + 17:00│  │ Gemini→Groq→      │  │
-│  │            │  │ + 手动刷新    │  │ OpenRouter→Ollama  │  │
+│  │ /api/*     │  │ 10:00 + 17:00│  │ OpenRouter(轮换)→  │  │
+│  │            │  │ + 手动刷新    │  │ Groq→Ollama        │  │
 │  └─────┬──────┘  └──────┬───────┘  └──────┬────────────┘  │
 │        │                │                 │               │
 │  ┌─────┴────────────────┴─────────────────┴─────────────┐ │
