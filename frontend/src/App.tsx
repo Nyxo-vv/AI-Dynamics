@@ -23,18 +23,24 @@ function AppContent() {
   const [backlog, setBacklog] = useState<{ unprocessed: number; total: number } | null>(null);
   const { toast } = useToast();
 
-  // Poll backlog status every 10s
+  // Poll backlog status every 10s, stop when all processed
   useEffect(() => {
+    let stopped = false;
     const poll = async () => {
       try {
         const data = await getBacklogStatus();
         setBacklog(data);
+        if (data.unprocessed === 0) {
+          stopped = true;
+        }
       } catch {
         // silent — backend may not be running
       }
     };
     poll();
-    const interval = setInterval(poll, 10000);
+    const interval = setInterval(() => {
+      if (!stopped) poll();
+    }, 10000);
     return () => clearInterval(interval);
   }, []);
 
