@@ -142,7 +142,11 @@ async def _find_similar_processed(db, norm_title: str, exclude_id: int):
 
 
 PROCESS_PROMPT = """\
-AI news analyst. Return JSON object for this article:
+AI news analyst. Return JSON object for this article.
+
+CRITICAL: Output natural, accurate Chinese. Do NOT generate random characters, gibberish, or rare CJK characters. If you cannot translate accurately, use the original English title instead.
+
+Fields:
 - "title_zh": Chinese title (keep proper nouns in English like GPT-5, OpenAI)
 - "summary_zh": 2-3 sentence Chinese summary, keep technical terms in English
 - "tags": 1-3 from ["research","product","opensource","news","funding","policy","community"]
@@ -176,6 +180,8 @@ Title: {title} | URL: {url}
 
 BATCH_PROMPT = """\
 AI news analyst. Return a JSON ARRAY ({count} objects, same order as input).
+
+CRITICAL: Output natural, accurate Chinese. Do NOT generate random characters, gibberish, or rare CJK characters. If you cannot translate a title accurately, use the original English title instead.
 
 Fields per object:
 - "id": article ID (copy from input)
