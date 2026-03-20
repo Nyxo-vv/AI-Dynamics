@@ -17,3 +17,7 @@ dependencies = [
     "aiosqlite>=0.21",
     "beautifulsoup4>=4.13",
 ]
+
+[tool.setuptools]
+py-modules = []
+packages = []
