@@ -1,4 +1,4 @@
-"""Scheduler: daily fetch at 10:00 and 17:00, plus startup catch-up."""
+"""Scheduler: daily fetch at 06:00, 10:00 and 17:00, plus startup catch-up."""
 
 import logging
 from datetime import datetime, date
@@ -46,10 +46,16 @@ async def _check_startup_catchup():
 
 
 def start_scheduler():
-    """Start the APScheduler with daily 10:00 and 17:00 jobs."""
+    """Start the APScheduler with daily 06:00, 10:00 and 17:00 jobs."""
     global _scheduler
     _scheduler = AsyncIOScheduler()
 
+    _scheduler.add_job(
+        _run_scheduled_fetch,
+        CronTrigger(hour=6, minute=0),
+        id="fetch_early",
+        name="Early bird fetch (06:00)",
+    )
     _scheduler.add_job(
         _run_scheduled_fetch,
         CronTrigger(hour=10, minute=0),
@@ -64,7 +70,7 @@ def start_scheduler():
     )
 
     _scheduler.start()
-    logger.info("Scheduler started: daily fetches at 10:00 and 17:00")
+    logger.info("Scheduler started: daily fetches at 06:00, 10:00 and 17:00")
 
 
 def stop_scheduler():

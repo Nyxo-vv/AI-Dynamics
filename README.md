@@ -4,10 +4,11 @@
 
 ## 功能特性
 
-- **RSS 自动抓取** — 聚合 OpenAI、DeepMind、arXiv、Hugging Face、Reddit 等 13+ 信息源，每日定时抓取（10:00 / 17:00）或手动刷新
-- **LLM 智能处理** — 三引擎策略（Gemini → Groq → Ollama），自动中文意译、分类（7 种标签）、重要性评分（1-5）
-- **批量合并 Prompt** — 5 篇文章合并为一次 API 调用，减少 80% 调用次数
-- **每日简报** — LLM 从当日文章中选出 Top 10 头条 + 分类浏览 + 数据统计
+- **RSS 自动抓取** — 聚合 OpenAI、DeepMind、arXiv、Hugging Face、Reddit 等 13 个信息源，每日三次定时抓取（06:00 / 10:00 / 17:00）或手动刷新
+- **LLM 智能处理** — 多引擎策略（OpenRouter 多 Key×模型轮换 → Groq → Ollama），自动中文意译、分类（7 种标签）、重要性评分（1-5）
+- **批量合并 Prompt** — 10 篇文章合并为一次 API 调用，大幅减少调用次数和 Token 消耗
+- **HTML 清洗** — 白名单提取 h/p/li 纯文本，保留链接为 Markdown 格式，剔除 script/style/svg 等噪声
+- **每日简报** — LLM 从当日文章中按技术突破性、源头权威性、实操价值等维度选出 Top 10 头条 + 分类浏览 + 数据统计
 - **信息流浏览** — 按时间线查看全部文章，支持分类筛选和关键词搜索
 - **收藏管理** — 星标感兴趣的文章
 - **月度自动清理** — 超过一个月的数据自动归档压缩，数据库保持轻量
@@ -18,7 +19,7 @@
 |----|------|
 | 后端 | Python 3.12 + FastAPI + SQLite (aiosqlite) |
 | 前端 | Vite + React 19 + TypeScript + TailwindCSS + shadcn/ui |
-| LLM | Gemini 2.0 Flash / Groq (llama-3.3-70b) / Ollama |
+| LLM | OpenRouter (多 Key×模型轮换) / Groq (llama-3.3-70b) / Ollama |
 | 定时任务 | APScheduler |
 | RSS 解析 | feedparser + httpx + BeautifulSoup |
 
@@ -53,16 +54,18 @@ cp .env.example .env
 ### 配置 `.env`
 
 ```env
-# Gemini API（主引擎，免费额度可用）
-GEMINI_API_KEY=your_key_here
+# OpenRouter API（主引擎，多 Key 逗号分隔）
+OPENROUTER_API_KEYS=sk-or-v1-key1,sk-or-v1-key2
+# 多模型逗号分隔，429 时自动轮换
+OPENROUTER_MODELS=meta-llama/llama-3.3-70b-instruct:free,mistralai/mistral-small-3.1-24b-instruct:free,google/gemma-3-27b-it:free
 
-# Groq API（备用引擎，免费额度 100K tokens/天）
+# Groq API（次引擎，留空则跳过）
 GROQ_API_KEY=your_key_here
 GROQ_MODEL=llama-3.3-70b-versatile
 
-# Ollama（兜底引擎，本地运行）
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.2:3b
+# Ollama（兜底引擎，本地运行，云服务器可留空）
+# OLLAMA_BASE_URL=http://localhost:11434
+# OLLAMA_MODEL=llama3.2:3b
 ```
 
 ### 启动
@@ -86,7 +89,7 @@ AI Dynamics/
 ├── backend/
 │   ├── main.py              # FastAPI 入口 (port 9100)
 │   ├── config.py            # 环境配置
-│   ├── database.py          # SQLite 初始化（4 张表）
+│   ├── database.py          # SQLite 初始化（5 张表 + WAL 模式）
 │   ├── models.py            # Pydantic 模型
 │   ├── seed_sources.py      # RSS 源种子数据
 │   ├── fetcher/
@@ -95,7 +98,7 @@ AI Dynamics/
 │   │   ├── scheduler.py     # 定时调度
 │   │   └── cleanup.py       # 月度清理 + 归档
 │   ├── llm/
-│   │   ├── engine.py        # 三引擎 LLM（Gemini → Groq → Ollama）
+│   │   ├── engine.py        # 多引擎 LLM（OpenRouter→Groq→Ollama）
 │   │   ├── processor.py     # 文章处理（批量/单篇）
 │   │   └── briefing.py      # 简报生成器
 │   └── api/
@@ -113,6 +116,7 @@ AI Dynamics/
 │   └── archive/             # 月度归档 (.json.gz)
 ├── start.sh                 # 一键启动脚本
 ├── DESIGN.md                # 设计文档
+├── API.md                   # REST API 文档
 └── .env                     # 环境变量（不入 git）
 ```
 
@@ -147,36 +151,22 @@ AI Dynamics/
 
 This is a personal side project and I'm running into a few issues I haven't been able to solve yet. If you have experience with any of these, I'd really appreciate your help!
 
-### 1. LLM API free tier limits are a bottleneck
+### 1. Some RSS sources are dead
 
-The project relies on free-tier LLM APIs for article processing (translation + classification + scoring). With ~2500 articles to process:
-
-- **Gemini Free Tier**: daily quota runs out quickly, even with batch prompting (5 articles per call)
-- **Groq Free Tier**: 100K tokens/day limit, exhausted after ~400 articles
-- **Ollama (llama3.2:3b)**: local fallback, but Chinese translation quality is unusable (produces garbled text / gibberish)
-
-**What I need**: A cost-effective way to process large volumes of articles through LLM. Ideas I'm considering:
-- A better local model that actually handles Chinese well? (Qwen2.5? Yi?)
-- Smarter batching strategies to fit more articles per call?
-- Other free/cheap API options?
-
-### 2. Some RSS sources are dead
-
-Three sources have broken RSS feeds and are currently disabled:
+Two sources have broken RSS feeds and are currently disabled:
 
 | Source | Issue |
 |--------|-------|
 | Anthropic (`anthropic.com/news/rss`) | RSS feed no longer exists |
-| Meta AI (`ai.meta.com/blog/rss/`) | RSS feed no longer exists |
 | 机器之心 (`jiqizhixin.com/rss`) | Redirects to Feishu login page |
 
 **What I need**: Alternative RSS feeds or reliable ways to get updates from these sources. Self-hosted RSSHub? Other aggregators?
 
-### 3. No dark mode
+### 2. No dark mode
 
 The UI is currently light-only. Would love help implementing a proper dark mode with TailwindCSS + shadcn/ui theming.
 
-### 4. No tests
+### 3. No tests
 
 Zero test coverage. The codebase could use:
 - Unit tests for the LLM processor (especially batch prompt parsing and error handling)

@@ -28,13 +28,21 @@ CATEGORY_LABELS = {
 }
 
 HEADLINE_PROMPT = """\
-You are an AI industry analyst. Given the following list of articles (each with id, title, Chinese title, summary, source, importance score, and tags), select the TOP 10 most important and impactful articles as today's headlines.
+You are a senior AI industry analyst. Given the following articles, select the TOP 10 as today's headlines.
 
-Criteria for selection:
-- Major breakthroughs, product launches, significant funding rounds, or policy changes rank highest
-- Prefer diversity: avoid picking multiple articles about the same topic
-- Higher importance scores should be weighted but not blindly followed
-- Consider source authority (official lab blogs > media > community)
+Ranking criteria (high → low priority):
+1. **Technical breakthrough**: novel architecture, SOTA results, major capability leap
+2. **Source authority**: official lab blogs (OpenAI/DeepMind/Anthropic) > established media > community posts
+3. **Practical value**: open-source model/code releases > paper-only research without artifacts
+4. **Industry impact**: significant product launches, major funding rounds, policy changes affecting AI development
+5. **Cross-domain effect**: breakthroughs impacting non-AI fields (healthcare, law, science) get a boost
+
+Negative signals (downrank):
+- **Stale news**: if the same event was already covered by another article in this list, keep only the most authoritative source
+- **Low-information**: routine updates, minor version bumps, promotional content
+- **Topic duplication**: avoid picking multiple articles about the same story — prefer diversity
+
+Use importance scores as a reference but apply your own judgment based on the criteria above.
 
 Return a JSON array of exactly 10 article IDs, ordered by importance (most important first):
 [42, 17, 8, ...]

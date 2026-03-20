@@ -1,6 +1,6 @@
 # AI Dynamics — 全球 AI 行业动态追踪工具
 
-> 设计文档 v0.5 | 2026-03-19
+> 设计文档 v0.6 | 2026-03-20
 
 ## 1. 项目目标
 
@@ -12,22 +12,22 @@
 
 ### 2.1 实验室 / 公司官方
 
-| 来源 | RSS / 地址 | 说明 |
-|------|-----------|------|
-| OpenAI | `https://openai.com/news/rss.xml` | 新模型、o 系列、API 更新 |
-| Google DeepMind | `https://deepmind.google/blog/rss.xml` | Gemini、AlphaFold 等研究进展 |
-| Google AI Blog | `https://blog.google/technology/ai/rss/` | Google 产品层面的 AI 动态 |
-| Anthropic | `https://www.anthropic.com/news/rss` | Claude 系列、安全研究 |
-| Meta AI | `https://ai.meta.com/blog/rss/` | LLaMA 系列、开源大模型 |
-| Microsoft AI | `https://blogs.microsoft.com/ai/feed/` | Copilot、Azure AI |
+| 来源 | RSS / 地址 | 状态 | 说明 |
+|------|-----------|------|------|
+| OpenAI | `https://openai.com/news/rss.xml` | ✅ 已接入 | 新模型、o 系列、API 更新 |
+| Google DeepMind | `https://deepmind.google/blog/rss.xml` | ✅ 已接入 | Gemini、AlphaFold 等研究进展 |
+| Google AI Blog | `https://blog.google/technology/ai/rss/` | ✅ 已接入 | Google 产品层面的 AI 动态 |
+| Anthropic | `https://www.anthropic.com/news/rss` | ⏸ 待接入 | 官方 RSS 已下线，需自建 RSSHub |
+| Engineering at Meta | `https://engineering.fb.com/feed/` | ✅ 已接入 | Meta 工程博客（含 AI 内容） |
+| Microsoft AI | `https://blogs.microsoft.com/ai/feed/` | ✅ 已接入 | Copilot、Azure AI |
 
 ### 2.2 学术 / 论文
 
-| 来源 | RSS / 地址 | 说明 |
-|------|-----------|------|
-| arXiv cs.AI | `https://arxiv.org/rss/cs.AI` | 突破性论文第一现场，量大需过滤 |
-| Papers with Code | `https://paperswithcode.com/latest` | 论文 + 代码配对，可看 trending |
-| MarkTechPost | `https://www.marktechpost.com/feed/` | 论文 + 新模型快讯，摘要质量不错 |
+| 来源 | RSS / 地址 | 状态 | 说明 |
+|------|-----------|------|------|
+| arXiv cs.AI | `https://arxiv.org/rss/cs.AI` | ✅ 已接入 | 突破性论文第一现场，量大需过滤 |
+| Papers with Code | `https://paperswithcode.com/latest` | ⏸ 待接入 | 论文 + 代码配对，可看 trending |
+| MarkTechPost | `https://www.marktechpost.com/feed/` | ✅ 已接入 | 论文 + 新模型快讯，摘要质量不错 |
 
 > **arXiv 量控策略：** arXiv cs.AI 日均 50-100+ 篇，全量调 LLM 成本过高。采用两阶段过滤：
 > 1. **预筛**：仅对标题 + 摘要做轻量关键词匹配（LLM、transformer、agent、reasoning 等高价值关键词），过滤掉明显无关的论文
@@ -35,49 +35,51 @@
 
 ### 2.3 Newsletter / 快讯聚合
 
-| 来源 | 获取方式 | 说明 |
-|------|---------|------|
-| The Rundown AI | 邮件订阅 → 转 RSS | 日更质量最高的 AI 快讯 |
-| Ben's Bites | 邮件 / RSS | 工具 + 产品 + 小突破汇总 |
+| 来源 | 获取方式 | 状态 | 说明 |
+|------|---------|------|------|
+| The Rundown AI | 邮件订阅 → 转 RSS | ⏸ 待接入 | 日更质量最高的 AI 快讯 |
+| Ben's Bites | 邮件 / RSS | ⏸ 待接入 | 工具 + 产品 + 小突破汇总 |
 
 > **邮件 Newsletter 接入方案：** 对于仅支持邮件订阅的来源，使用 [kill-the-newsletter](https://kill-the-newsletter.com) 等服务将邮件订阅转为 RSS feed，统一走 RSS 抓取管线。
 
 ### 2.4 科技媒体
 
-| 来源 | RSS / 地址 | 说明 |
-|------|-----------|------|
-| MIT Technology Review (AI) | `https://www.technologyreview.com/topic/artificial-intelligence/feed/` | 深度报道 |
-| WIRED AI | `https://www.wired.com/feed/tag/ai/latest/rss` | 科技文化视角 |
-| Ars Technica (AI) | `https://arstechnica.com/tag/artificial-intelligence/feed/` | 技术深度分析 |
+| 来源 | RSS / 地址 | 状态 | 说明 |
+|------|-----------|------|------|
+| MIT Technology Review (AI) | `https://www.technologyreview.com/topic/artificial-intelligence/feed/` | ✅ 已接入 | 深度报道 |
+| WIRED AI | `https://www.wired.com/feed/tag/ai/latest/rss` | ✅ 已接入 | 科技文化视角 |
+| Ars Technica (AI) | `https://arstechnica.com/tag/artificial-intelligence/feed/` | ✅ 已接入 | 技术深度分析 |
 
 ### 2.5 开源社区
 
-| 来源 | RSS / 地址 | 说明 |
-|------|-----------|------|
-| Hugging Face Blog | `https://huggingface.co/blog/feed.xml` | 开源模型、数据集、工具 |
-| GitHub Trending (ML) | `https://github.com/trending?since=daily` | 无 RSS，需爬取并过滤 ML 相关 |
+| 来源 | RSS / 地址 | 状态 | 说明 |
+|------|-----------|------|------|
+| Hugging Face Blog | `https://huggingface.co/blog/feed.xml` | ✅ 已接入 | 开源模型、数据集、工具 |
+| GitHub Trending (ML) | `https://github.com/trending?since=daily` | ⏸ 待接入 | 无 RSS，需爬取并过滤 ML 相关 |
 
 ### 2.6 社区讨论 / 信号源
 
-| 来源 | RSS / 地址 | 说明 |
-|------|-----------|------|
-| Reddit r/MachineLearning | `https://www.reddit.com/r/MachineLearning/.rss` | 一线研究者讨论，需自定义 User-Agent |
-| Reddit r/LocalLLaMA | `https://www.reddit.com/r/LocalLLaMA/.rss` | 开源模型社区风向标，需自定义 User-Agent |
-| Hacker News | 需通过 API 过滤 AI 相关 | 技术社区早期信号 |
+| 来源 | RSS / 地址 | 状态 | 说明 |
+|------|-----------|------|------|
+| Reddit r/MachineLearning | `https://www.reddit.com/r/MachineLearning/.rss` | ✅ 已接入 | 一线研究者讨论，需自定义 User-Agent |
+| Reddit r/LocalLLaMA | `https://www.reddit.com/r/LocalLLaMA/.rss` | ✅ 已接入 | 开源模型社区风向标，需自定义 User-Agent |
+| Hacker News | 需通过 API 过滤 AI 相关 | ⏸ 待接入 | 技术社区早期信号 |
 
 ### 2.7 投融资 / 商业
 
-| 来源 | 获取方式 | 说明 |
-|------|---------|------|
-| CB Insights AI Newsletter | 邮件订阅 | AI 投融资、市场格局 |
-| The Information (AI) | 付费订阅 | 信息密度极高，业内必读 |
+| 来源 | 获取方式 | 状态 | 说明 |
+|------|---------|------|------|
+| CB Insights AI Newsletter | 邮件订阅 | ⏸ 待接入 | AI 投融资、市场格局 |
+| The Information (AI) | 付费订阅 | ⏸ 待接入 | 信息密度极高，业内必读 |
 
 ### 2.8 中文来源
 
-| 来源 | RSS / 地址 | 说明 |
-|------|-----------|------|
-| 机器之心 | `https://www.jiqizhixin.com/rss` | 国内最好的 AI 媒体 |
-| 量子位 | 需爬取或关注公众号 | 国内 AI 快讯 |
+| 来源 | RSS / 地址 | 状态 | 说明 |
+|------|-----------|------|------|
+| 机器之心 | `https://www.jiqizhixin.com/rss` | ⏸ 待接入 | RSS 已停用，待替代方案 |
+| 量子位 | 需爬取或关注公众号 | ⏸ 待接入 | 国内 AI 快讯 |
+
+> **当前已接入来源统计：** 13 个 RSS 源（5 实验室 + 2 学术 + 3 媒体 + 1 开源 + 2 社区），覆盖英文主流 AI 信息源。中文来源、Newsletter、非 RSS 来源待后续接入。
 
 ---
 
@@ -108,13 +110,12 @@
 | 层 | 技术选型 | 理由 |
 |----|---------|------|
 | 后端 | Python + FastAPI | 生态成熟，RSS 解析 / LLM 调用库丰富 |
-| 前端 | Vite + React + TailwindCSS + shadcn/ui | Vite 构建快，shadcn/ui 提供高质量基础组件 |
+| 前端 | Vite 8 + React 19 + TailwindCSS 4 + shadcn/ui | Vite 构建快，shadcn/ui 提供高质量基础组件 |
 | 数据库 | SQLite | 零配置，单文件，个人工具足够 |
 | 定时任务 | APScheduler | Python 原生，无需外部 cron |
 | RSS 解析 | feedparser | Python RSS 解析标准库 |
 | LLM (主) | OpenRouter (多 Key × 多模型轮换) | 聚合平台，免费模型丰富，Key+模型双重轮换最大化吞吐 |
 | LLM (次) | Groq (llama-3.3-70b-versatile) | 免费额度，响应极快 |
-| LLM (备) | Google Gemini API (gemini-2.0-flash) | 当前已禁用（免费额度耗尽），可随时恢复 |
 | LLM (兜底) | Ollama (本地) | 所有云端额度耗尽时本地兜底 |
 | 后端端口 | 9100 | `http://localhost:9100` |
 | 前端端口 | 5173 | `http://localhost:5173`（Vite 默认） |
@@ -189,13 +190,13 @@ OLLAMA_MODEL=llama3.2:3b
 **任务优先级（高 → 低）：**
 1. **简报生成/更新** — 用户点击「生成/更新简报」时，积压处理自动暂停让路
 2. **手动抓取** — 用户点击「立即刷新」时，积压处理自动暂停让路
-3. **积压文章处理** — 后台自动进行，按时间由近到远处理
+3. **积压文章处理** — 后台自动进行，按时间由近到远处理，完成后前端自动停止轮询积压状态
 
 ### 4.3 抓取策略
 
 | 触发方式 | 时间 | 说明 |
 |---------|------|------|
-| 定时抓取 | 每天 **10:00** 和 **17:00** | APScheduler 定时任务，覆盖早晚两个信息高峰 |
+| 定时抓取 | 每天 **06:00**、**10:00** 和 **17:00** | APScheduler 定时任务，06:00 早鸟抓取确保早起即看，10:00 + 17:00 覆盖日间信息高峰 |
 | 手动刷新 | 随时 | Dashboard 页面「立即刷新」按钮，后端收到请求后即时拉取全部 RSS |
 | 启动积压处理 | 后端启动时 | 自动检测未处理文章，后台批量处理（不阻塞 API） |
 
@@ -216,22 +217,23 @@ OLLAMA_MODEL=llama3.2:3b
 ```
 ┌───────────────────────────────────────────────────────────┐
 │              浏览器 Dashboard (:5173)                       │
-│  ┌──────────┬──────────┬──────────┬──────────┬──────────┐ │
-│  │ 每日简报  │ 信息流   │ 按类别   │  按来源   │ 收藏     │ │
-│  └──────────┴──────────┴──────────┴──────────┴──────────┘ │
+│  ┌────────────────┬────────────────┬────────────────────┐ │
+│  │    每日简报     │     信息流     │       收藏          │ │
+│  └────────────────┴────────────────┴────────────────────┘ │
 └────────────────────────────┬──────────────────────────────┘
                              │ HTTP API
 ┌────────────────────────────┴──────────────────────────────┐
 │                   FastAPI 后端 (:9100)                      │
 │  ┌────────────┐  ┌──────────────┐  ┌───────────────────┐  │
 │  │ REST API   │  │ 抓取调度器    │  │ LLM 多引擎         │  │
-│  │ /api/*     │  │ 10:00 + 17:00│  │ OpenRouter(轮换)→  │  │
+│  │ /api/*     │  │ 06+10:00+17  │  │ OpenRouter(轮换)→  │  │
 │  │            │  │ + 手动刷新    │  │ Groq→Ollama        │  │
 │  └─────┬──────┘  └──────┬───────┘  └──────┬────────────┘  │
 │        │                │                 │               │
 │  ┌─────┴────────────────┴─────────────────┴─────────────┐ │
-│  │                  SQLite 数据库                         │ │
-│  │  articles │ sources │ article_tags │ briefings        │ │
+│  │              SQLite 数据库 (WAL 模式)                  │ │
+│  │  articles │ sources │ article_tags │ briefings │       │ │
+│  │  seen_urls                                            │ │
 │  └───────────────────────────────────────────────────────┘ │
 └───────────────────────────────────────────────────────────┘
 ```
@@ -279,11 +281,36 @@ CREATE TABLE article_tags (
     tag         TEXT NOT NULL,           -- 'research' | 'product' | ...
     PRIMARY KEY (article_id, tag)
 );
+
+-- URL 去重表 (独立于 articles，清理文章后仍保留，防止重复抓取)
+CREATE TABLE seen_urls (
+    url     TEXT PRIMARY KEY,
+    seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-### 4.6 LLM 内容处理策略
+**索引：**
+```sql
+CREATE INDEX idx_articles_url ON articles(url);
+CREATE INDEX idx_articles_published ON articles(published_at);
+CREATE INDEX idx_articles_source ON articles(source_id);
+CREATE INDEX idx_briefings_date ON briefings(date);
+```
 
-#### 4.6.1 中文意译
+### 4.6 内容处理策略
+
+#### 4.6.1 HTML 清洗
+
+RSS 原始内容含大量 HTML 噪声（script/style/svg/nav 等），直接送 LLM 浪费 Token。抓取入库时自动清洗：
+
+- **白名单提取**：仅保留 `h1-h6`、`p`、`li` 标签的纯文本
+- **噪声剔除**：`decompose()` 删除 script/style/svg/form/footer/nav/aside
+- **链接保留**：`<a href>` 转为 Markdown `[text](url)` 格式，确保 LLM 能提取 `related_links`
+- **嵌套去重**：跳过被父级白名单标签包含的子标签（如 `<li><p>` 不重复提取）
+- **结构标记**：标题转 `#`/`##`，列表项转 `- `，辅助 LLM 理解文章层级
+- **兜底机制**：白名单提取结果为空时回退到 `get_text()`，避免非标准 HTML 内容丢失
+
+#### 4.6.2 中文意译
 
 对非中文来源的文章，LLM 在抓取入库时自动处理：
 
@@ -300,7 +327,7 @@ CREATE TABLE article_tags (
 - 公司/产品名保留原文，如 OpenAI、Claude、Hugging Face
 - 数字、指标等精确信息必须保留
 
-#### 4.6.2 媒体与链接提取
+#### 4.6.3 媒体与链接提取
 
 抓取文章时，从 RSS 内容和原文页面中提取：
 
@@ -356,7 +383,7 @@ CREATE TABLE article_tags (
 #### 4.7.3 字体与排版
 
 ```css
-font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+font-family: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 ```
 
 | 用途 | 字号 | 字重 | 行高 |
@@ -497,13 +524,17 @@ font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 #### 4.9.2 简报生成流程
 
 1. 用户在页面点击 **「生成今日简报」** 按钮
-2. 后端收集时间窗口内的所有文章
-3. 调用 LLM 生成结构化简报：
-   - **头条 Top 10**：从全部文章中选出最重要的 10 条，标记为「头条」
-   - **分类归档**：剩余文章按 research / product / opensource / news 等分组，无文章的分类不生成
-   - **所有文章**均附带中文意译摘要、原文链接、封面图
-   - **数据统计**：各类别文章数量、来源分布
-4. 简报存入数据库，后续可直接查看无需重新生成
+2. 后端收集时间窗口内所有已处理文章（`title_zh IS NOT NULL AND importance > 0`）
+3. 调用 LLM 选出 **头条 Top 10**，选取维度：
+   - **技术突破性**：新架构、SOTA 结果、重大能力飞跃
+   - **源头权威性**：官方实验室博客 > 主流媒体 > 社区帖子
+   - **实操价值**：开源模型/代码 > 只有论文没有代码的研究
+   - **行业影响力**：重要产品发布、重大融资、影响 AI 发展的政策变化
+   - **破圈效应**：对非 AI 领域（医疗、法律、科学）产生重大影响的突破加分
+   - **负向信号**：旧闻冗余（同一事件保留最权威来源）、低信息量、话题重复（优先多样性）
+4. 剩余文章按 research / product / opensource / news 等 **分类归档**，无文章的分类不生成
+5. 构建统计数据：各类别文章数量、来源分布
+6. 简报存入数据库，后续可直接查看无需重新生成
 
 #### 4.9.3 简报数据模型
 
@@ -661,17 +692,21 @@ data/
 
 ### 4.11 核心功能与优先级
 
-| 优先级 | 功能 | MVP | 说明 |
-|--------|------|-----|------|
-| P0 | RSS 抓取 + 存储 + 去重 | ✓ | 核心数据管线 |
-| P0 | LLM 意译 + 分类 + 重要性评分 | ✓ | 简报生成的前置依赖，抓取时即处理 |
-| P0 | 每日简报生成 + 7天日期导航 | ✓ | 核心阅读体验 |
-| P0 | Dashboard 简报 + 信息流展示 | ✓ | 基本可用 |
-| P1 | 简报内搜索 + 筛选 | ✓ | 关键词精筛已生成简报 |
-| P2 | 已读/收藏管理 | | 个人阅读状态 |
-| P3 | 非 RSS 来源抓取 | | GitHub Trending, HN 等 |
-| P3 | 自定义关键词订阅/高亮 | | "transformer", "AGI" 等 |
-| P4 | 趋势分析 / 热度图 | | 哪些话题在升温 |
+| 优先级 | 功能 | 状态 | 说明 |
+|--------|------|------|------|
+| P0 | RSS 抓取 + 存储 + URL 去重 | ✅ 已完成 | 核心数据管线，含 seen_urls 持久去重 |
+| P0 | LLM 多引擎意译 + 分类 + 评分 | ✅ 已完成 | OpenRouter 多 Key×模型轮换 + Groq + Ollama 兜底 |
+| P0 | 每日简报生成 + 7天日期导航 | ✅ 已完成 | 核心阅读体验 |
+| P0 | Dashboard 简报 + 信息流 + 收藏 | ✅ 已完成 | 3 Tab 布局 |
+| P0 | 积压文章自动处理 | ✅ 已完成 | 启动时自动检测，后台批量处理，7天窗口 |
+| P1 | 简报内搜索 + 分类筛选 | ✅ 已完成 | 关键词精筛已生成简报 |
+| P1 | 已读/收藏管理 | ✅ 已完成 | 个人阅读状态 |
+| P1 | 抓取进度实时显示 | ✅ 已完成 | FetchProgress 组件，实时反馈 |
+| P1 | 月度自动清理 + 归档 | ✅ 已完成 | 启动时自检触发 |
+| P2 | 云服务器部署 | 🔧 进行中 | 阿里云部署方案 |
+| P3 | 非 RSS 来源抓取 | ⏸ 待开发 | GitHub Trending, HN 等 |
+| P3 | 自定义关键词订阅/高亮 | ⏸ 待开发 | "transformer", "AGI" 等 |
+| P4 | 趋势分析 / 热度图 | ⏸ 待开发 | 哪些话题在升温 |
 
 ---
 
@@ -679,46 +714,61 @@ data/
 
 ```
 AI Dynamics/
-├── DESIGN.md
-├── .env.example             # 环境变量模板 (GEMINI_API_KEY, OLLAMA 配置等)
+├── DESIGN.md                # 本文档
+├── README.md                # 项目说明
+├── API.md                   # REST API 文档
+├── start.sh                 # 一键启动脚本 (Ollama + 后端 + 前端)
+├── .env.example             # 环境变量模板
 ├── .env                     # 本地环境变量 (不入 git)
 ├── .gitignore
 ├── backend/
 │   ├── pyproject.toml       # Python 项目配置 + 依赖管理
-│   ├── main.py              # FastAPI 入口
-│   ├── config.py            # 配置 (端口、API Key 等，读取 .env)
-│   ├── database.py          # SQLite 连接 + 初始化
-│   ├── models.py            # Pydantic 模型
+│   ├── main.py              # FastAPI 入口，生命周期管理
+│   ├── config.py            # 配置 (端口、API Key、LLM 引擎设置，读取 .env)
+│   ├── database.py          # SQLite 连接 + 初始化 (5 表 + WAL 模式)
+│   ├── models.py            # Pydantic 响应模型
+│   ├── seed_sources.py      # RSS 来源种子数据 (13 源)
 │   ├── fetcher/
-│   │   ├── rss.py           # RSS 抓取器 (含 Reddit UA 处理)
-│   │   ├── filter.py        # arXiv 等高量源的预筛过滤
-│   │   ├── scraper.py       # 网页爬虫 (GitHub Trending 等)
-│   │   ├── scheduler.py     # 定时调度 (10:00 + 17:00)
-│   │   └── cleanup.py       # 月度数据清理 + 归档
+│   │   ├── __init__.py      # 抓取管线编排 (fetch → dedup → LLM → 入库)
+│   │   ├── rss.py           # RSS 抓取器 (含 Reddit UA、图片提取、URL 去重)
+│   │   ├── filter.py        # arXiv 关键词预筛过滤
+│   │   ├── scheduler.py     # APScheduler 定时调度 (10:00 + 17:00)
+│   │   └── cleanup.py       # 月度数据清理 + gzip 归档
 │   ├── llm/
-│   │   ├── engine.py        # LLM 多引擎管理 (Gemini → Groq → OpenRouter → Ollama)
-│   │   ├── processor.py     # LLM 统一处理 (意译 + 分类 + 评分)
-│   │   └── briefing.py      # LLM 简报生成器
-│   ├── api/
-│   │   ├── articles.py      # 文章 CRUD API
-│   │   ├── sources.py       # 来源管理 API
-│   │   └── briefings.py     # 每日简报 API
-│   └── seed_sources.py      # 初始化数据来源
+│   │   ├── engine.py        # LLM 多引擎管理 (OpenRouter→Groq→Ollama)
+│   │   ├── processor.py     # LLM 统一处理 (意译 + 分类 + 评分 + 链接提取)
+│   │   └── briefing.py      # LLM 简报生成器 (Top 10 + 分类)
+│   └── api/
+│       ├── articles.py      # 文章列表、筛选、搜索、已读/收藏
+│       ├── sources.py       # RSS 来源管理
+│       ├── briefings.py     # 简报生成、查询、最近状态
+│       └── fetch.py         # 手动抓取触发 + 状态轮询
 ├── frontend/
 │   ├── package.json
+│   ├── vite.config.ts       # Vite 配置 (含路径别名)
+│   ├── tsconfig.json        # TypeScript 配置
 │   ├── src/
-│   │   ├── App.tsx
+│   │   ├── App.tsx          # 主布局 (Header + 3 Tab 导航)
 │   │   ├── pages/
 │   │   │   ├── Briefing.tsx  # 每日简报 (默认首页)
-│   │   │   ├── Feed.tsx      # 信息流
-│   │   │   ├── Category.tsx  # 按类别
+│   │   │   ├── Feed.tsx      # 信息流 (分页 + 筛选 + 搜索)
 │   │   │   └── Starred.tsx   # 收藏
-│   │   └── components/
-│   │       ├── ArticleCard.tsx
-│   │       ├── Sidebar.tsx
-│   │       ├── FilterBar.tsx
-│   │       └── DateNavigator.tsx  # 7天日期选择器
-│   └── tailwind.config.js
+│   │   ├── components/
+│   │   │   ├── ArticleCard.tsx    # 文章卡片 (含封面图)
+│   │   │   ├── CategoryBadge.tsx  # 分类标签 (7 种配色)
+│   │   │   ├── DateNavigator.tsx  # 7天日期选择器
+│   │   │   ├── SearchBar.tsx      # 搜索输入框
+│   │   │   ├── FetchProgress.tsx  # 实时抓取/LLM 处理进度
+│   │   │   ├── Toast.tsx          # Toast 通知
+│   │   │   ├── ErrorBoundary.tsx  # 错误边界
+│   │   │   ├── Skeleton.tsx       # 加载骨架屏
+│   │   │   └── ui/button.tsx      # shadcn/ui 按钮组件
+│   │   └── lib/
+│   │       ├── api.ts        # API 客户端 (fetch, articles, briefings)
+│   │       ├── types.ts      # TypeScript 类型定义
+│   │       ├── constants.ts  # 分类映射、颜色常量
+│   │       └── utils.ts      # 工具函数
+│   └── ...
 └── data/
     ├── ai_dynamics.db       # SQLite 数据库文件 (不入 git)
     └── archive/             # 月度归档 (不入 git)
@@ -729,61 +779,73 @@ AI Dynamics/
 
 ## 6. 数据来源覆盖矩阵
 
+已接入来源（✅）与待接入来源（⏸）：
+
 ```
-                研究  产品  开源  新闻  投融资  社区
-OpenAI           ·    ✓     ·    ·     ·      ·
-DeepMind         ✓    ✓     ·    ·     ·      ·
-Anthropic        ✓    ✓     ·    ·     ·      ·
-Meta AI          ✓    ✓     ✓    ·     ·      ·
-Microsoft AI     ·    ✓     ·    ·     ·      ·
-arXiv            ✓    ·     ·    ·     ·      ·
-Papers w/ Code   ✓    ·     ✓    ·     ·      ·
-MarkTechPost     ✓    ✓     ·    ✓     ·      ·
-The Rundown AI   ✓    ✓     ✓    ✓     ·      ·
-Ben's Bites      ·    ✓     ✓    ✓     ·      ·
-MIT Tech Review  ✓    ·     ·    ✓     ·      ·
-WIRED AI         ·    ·     ·    ✓     ·      ·
-Ars Technica     ✓    ·     ·    ✓     ·      ·
-Hugging Face     ✓    ·     ✓    ·     ·      ·
-GitHub Trending  ·    ·     ✓    ·     ·      ·
-Reddit ML        ✓    ·     ✓    ·     ·      ✓
-Reddit LocalLLaMA·    ·     ✓    ·     ·      ✓
-Hacker News      ·    ✓     ✓    ✓     ·      ✓
-CB Insights      ·    ·     ·    ·     ✓      ·
-The Information  ·    ✓     ·    ✓     ✓      ·
-机器之心          ✓    ✓     ✓    ✓     ✓      ·
-量子位            ·    ✓     ·    ✓     ·      ·
+                    研究  产品  开源  新闻  投融资  社区   状态
+OpenAI               ·    ✓     ·    ·     ·      ·     ✅
+DeepMind             ✓    ✓     ·    ·     ·      ·     ✅
+Google AI Blog       ·    ✓     ·    ·     ·      ·     ✅
+Eng. at Meta         ✓    ✓     ✓    ·     ·      ·     ✅
+Microsoft AI         ·    ✓     ·    ·     ·      ·     ✅
+arXiv                ✓    ·     ·    ·     ·      ·     ✅
+MarkTechPost         ✓    ✓     ·    ✓     ·      ·     ✅
+MIT Tech Review      ✓    ·     ·    ✓     ·      ·     ✅
+WIRED AI             ·    ·     ·    ✓     ·      ·     ✅
+Ars Technica         ✓    ·     ·    ✓     ·      ·     ✅
+Hugging Face         ✓    ·     ✓    ·     ·      ·     ✅
+Reddit ML            ✓    ·     ✓    ·     ·      ✓     ✅
+Reddit LocalLLaMA    ·    ·     ✓    ·     ·      ✓     ✅
+─────────────────────────────────────────────────────────────
+Anthropic            ✓    ✓     ·    ·     ·      ·     ⏸
+Papers w/ Code       ✓    ·     ✓    ·     ·      ·     ⏸
+The Rundown AI       ✓    ✓     ✓    ✓     ·      ·     ⏸
+Ben's Bites          ·    ✓     ✓    ✓     ·      ·     ⏸
+GitHub Trending      ·    ·     ✓    ·     ·      ·     ⏸
+Hacker News          ·    ✓     ✓    ✓     ·      ✓     ⏸
+CB Insights          ·    ·     ·    ·     ✓      ·     ⏸
+The Information      ·    ✓     ·    ✓     ✓      ·     ⏸
+机器之心              ✓    ✓     ✓    ✓     ✓      ·     ⏸
+量子位                ·    ✓     ·    ✓     ·      ·     ⏸
 ```
 
 ---
 
-## 7. MVP 实现计划
+## 7. 实现计划
 
-**MVP 目标：** 能抓取所有 RSS 源，LLM 自动意译+分类+评分，生成每日简报，Dashboard 可浏览+搜索。
+### 阶段 1 — 后端基础 + 数据管线 ✅
+1. ✅ 初始化 Python 项目（pyproject.toml、.env 配置）
+2. ✅ 实现 SQLite 数据库初始化 + 全部数据模型（sources、articles、article_tags、briefings、seen_urls）
+3. ✅ 实现 RSS 抓取器（feedparser + httpx）+ arXiv 预筛过滤器
+4. ✅ 导入 13 个 RSS 来源种子数据
+5. ✅ 实现定时调度（APScheduler，10:00 + 17:00）
 
-### 阶段 1 — 后端基础 + 数据管线
-1. 初始化 Python 项目（pyproject.toml、.env 配置）
-2. 实现 SQLite 数据库初始化 + 全部数据模型（sources、articles、article_tags、briefings）
-3. 实现 RSS 抓取器（feedparser）+ arXiv 预筛过滤器
-4. 导入所有 RSS 来源种子数据（含 Newsletter 转 RSS）
-5. 实现定时调度（APScheduler）
+### 阶段 2 — LLM 处理 ✅
+6. ✅ 实现多引擎 LLM 处理器（OpenRouter 多 Key×模型轮换 → Groq → Ollama）
+7. ✅ 批量合并处理（10 篇/批次）+ 速率控制 + 日额度耗尽检测
+8. ✅ 积压文章自动处理（启动时检测，后台批量，7天窗口）
 
-### 阶段 2 — LLM 处理
-6. 接入 Claude API，实现统一处理器（意译 + 分类 + 重要性评分 + 媒体/链接提取）
-7. 在抓取管线中集成 LLM 处理，抓取即处理
+### 阶段 3 — 简报系统 ✅
+9. ✅ 实现简报生成 API + LLM 简报生成器（选头条 Top 10 + 分类归档）
+10. ✅ 实现简报查询接口（JOIN articles 返回完整数据）
+11. ✅ 实现简报内搜索 API
 
-### 阶段 3 — 简报系统
-8. 实现简报生成 API + LLM 简报生成器（选头条 Top 10 + 分类归档）
-9. 实现简报查询接口（JOIN articles 返回完整数据）
-10. 实现简报内搜索 API
+### 阶段 4 — 前端 Dashboard ✅
+12. ✅ 初始化 React 19 + TailwindCSS 4 + shadcn/ui 项目
+13. ✅ 实现每日简报页面（7天日期导航 + 生成按钮 + 头条 + 分类浏览 + 搜索）
+14. ✅ 实现信息流页面（时间线 + 分页 + 分类筛选 + 搜索）
+15. ✅ 实现收藏页面 + 已读/收藏管理
+16. ✅ 实现抓取进度实时显示（FetchProgress 组件）
 
-### 阶段 4 — 前端 Dashboard
-11. 初始化 React + TailwindCSS 项目
-12. 实现每日简报页面（7天日期导航 + 生成按钮 + 头条 + 分类浏览 + 搜索）
-13. 实现信息流页面（时间线 + 筛选）
-14. 实现按类别/来源浏览
+### 阶段 5 — 数据管理 + 部署 ✅ / 🔧
+17. ✅ 实现月度自动清理 + 归档备份（cleanup.py，启动时自检）
+18. ✅ 一键启动脚本（start.sh）
+19. 🔧 云服务器部署（阿里云）
 
-### 阶段 5 — 数据管理 + 完善
-15. 实现月度自动清理 + 归档备份（cleanup.py + APScheduler 注册）
-16. 已读/收藏状态管理
-17. 非 RSS 来源接入（GitHub Trending、HN 等）
+### 后续规划
+20. ⏸ 接入更多数据来源（Anthropic、Newsletter、中文来源等）
+21. ⏸ 非 RSS 来源抓取（GitHub Trending、HN 等）
+22. ⏸ 自定义关键词订阅/高亮
+23. ⏸ 趋势分析 / 热度图
+24. ⏸ LLM 调用质量监控（记录各引擎/模型的成功率、乱码率、429 频次，为模型池优化提供数据，等模型池扩大或使用付费模型时实施）
+25. ⏸ 数据库实时备份（Litestream → 阿里云 OSS，当数据变为不可重建时实施；当前数据可重新抓取，简单 cron + scp 即可满足备份需求）

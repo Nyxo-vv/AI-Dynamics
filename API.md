@@ -2,6 +2,8 @@
 
 Base URL: `http://localhost:9100`
 
+CORS: 允许来自 `http://localhost:5173` 和 `http://localhost:5174` 的请求。
+
 ---
 
 ## 健康检查
@@ -104,16 +106,21 @@ Base URL: `http://localhost:9100`
 | `source_id` | int | 信息源ID |
 | `source_name` | string | 信息源名称 |
 | `title` | string | 原文标题 |
-| `title_zh` | string | 中文标题 |
+| `title_zh` | string \| null | 中文标题（LLM 意译） |
 | `url` | string | 原文链接 |
-| `summary_zh` | string | 中文摘要（2-3句） |
-| `importance` | int | 重要性评分（1-5） |
+| `author` | string \| null | 作者 |
+| `content` | string \| null | 原始内容（HTML 清洗后的 Markdown 结构文本） |
+| `summary_zh` | string \| null | 中文摘要（2-3句） |
+| `cover_image` | string \| null | 封面图 URL |
+| `images` | array \| null | 文章内图片 URL 列表 |
+| `related_links` | array \| null | 相关链接（论文/GitHub/Demo等） |
+| `language` | string | 原文语言（`en` / `zh`） |
+| `importance` | int | 重要性评分（1-5，0=未处理） |
 | `tags` | array | 分类标签列表 |
-| `published_at` | string | 发布时间 |
-| `fetched_at` | string | 抓取时间 |
+| `published_at` | string \| null | 发布时间（ISO 8601） |
+| `fetched_at` | string \| null | 抓取时间（ISO 8601） |
 | `is_read` | bool | 是否已读 |
 | `is_starred` | bool | 是否收藏 |
-| `related_links` | array | 相关链接（论文/GitHub/Demo等） |
 
 ---
 
@@ -216,7 +223,26 @@ Base URL: `http://localhost:9100`
 {"date": "2026-03-19"}
 ```
 
-**响应：** 生成的简报内容，包含头条、分类板块和统计信息。
+**响应示例：**
+```json
+{
+  "id": 1,
+  "date": "2026-03-19",
+  "window_start": "2026-03-18 09:00:00",
+  "window_end": "2026-03-19 09:00:00",
+  "content": {
+    "headlines": [{"article_id": 42, "rank": 1}, ...],
+    "sections": [{"category": "research", "label": "研究突破", "article_ids": [10, 23]}, ...],
+    "stats": {"total": 58, "headline_count": 10, "by_category": {...}, "by_source": {...}}
+  },
+  "article_count": 58,
+  "generated_at": "2026-03-19 09:15:00"
+}
+```
+
+头条 Top 10 按以下维度排序：技术突破性 > 源头权威性 > 实操价值 > 行业影响力 > 破圈效应。旧闻冗余、低信息量内容自动降权。
+
+如果时间窗口内无文章返回 `404`。
 
 ---
 

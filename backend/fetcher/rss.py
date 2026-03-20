@@ -101,13 +101,65 @@ def _get_entry_html(entry: dict) -> str | None:
     return None
 
 
+_WHITELIST_TAGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6", "p", "li"})
+
+
+def _clean_html(html: str) -> str:
+    """Clean HTML to structured Markdown-like text for LLM processing.
+
+    Keeps only headings, paragraphs and list items. Preserves links as
+    Markdown syntax so the LLM can extract related_links.
+    """
+    if not html:
+        return ""
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Remove noise tags and all their children
+    for noise in soup(["script", "style", "svg", "form", "footer", "nav", "aside"]):
+        noise.decompose()
+
+    elements: list[str] = []
+    for tag in soup.find_all(_WHITELIST_TAGS):
+        # Skip nested whitelist tags to avoid duplication (e.g. <li><p>text</p></li>)
+        if tag.find_parent(_WHITELIST_TAGS):
+            continue
+
+        # Convert <a> to Markdown links before extracting text
+        for a in tag.find_all("a", href=True):
+            href = a["href"]
+            label = a.get_text().strip()
+            a.replace_with(f"[{label}]({href})" if label else href)
+
+        text = tag.get_text().strip()
+        if not text:
+            continue
+
+        name = tag.name
+        if name.startswith("h"):
+            elements.append(f"{'#' * int(name[1])} {text}")
+        elif name == "li":
+            elements.append(f"- {text}")
+        else:
+            elements.append(text)
+
+    result = "\n\n".join(elements)
+    # Compress excessive blank lines
+    result = re.sub(r"\n{3,}", "\n\n", result)
+    return result.strip()
+
+
 def _extract_text(entry: dict) -> str:
-    """Extract plain text content from entry (for storage / LLM processing)."""
+    """Extract clean text content from entry (for storage / LLM processing)."""
     html = _get_entry_html(entry)
     if not html:
         return ""
-    soup = BeautifulSoup(html, "html.parser")
-    return soup.get_text(separator="\n", strip=True)
+    cleaned = _clean_html(html)
+    # Fallback: if whitelist extraction yields nothing, use plain get_text
+    if not cleaned:
+        soup = BeautifulSoup(html, "html.parser")
+        return soup.get_text(separator="\n", strip=True)
+    return cleaned
 
 
 def _detect_language(text: str) -> str:
