@@ -101,9 +101,9 @@ VALID_TAGS = {"research", "product", "opensource", "news", "funding", "policy", 
 _GARBLED_RE = re.compile(
     r"[\u3040-\u309F\u30A0-\u30FF]"  # Hiragana + Katakana
     r"|[\u3400-\u4DBF]"  # CJK Extension A (extremely rare chars)
-    r"|[罤邭犸徛帡曈穹絷穽徖雩嶸罷昮跼徟棜覄柩盶帺肻帤糓鹋歵柒炱屍閪篾穼斣"
-    r"揌柅燶馁旐樜枦箆迆欜卡旵庚杈剬罞郝勸涁仵権勐肻弸郿湷囌浌贰狠"
-    r"粛跸绋馤杌橋]"
+    r"|[罤邭犸徛帡曈穹絷穽徖雩嶸罷昮跼徟棜覄柩盶帺肻帤糓鹋歵炱屍閪篾穼斣"
+    r"揌柅燶馁旐樜枦箆迆欜旵庚杈剬罞郝勸涁仵権勐弸郿湷囌浌狠"
+    r"粛跸绋馤杌橋籾厱冐樍飶雞閡帬丿]"
     r"|服加.*宝统|和提为访"
 )
 
