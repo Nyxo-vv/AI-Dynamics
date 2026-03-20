@@ -19,6 +19,12 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+
+class _TaggedStr(str):
+    """String subclass that carries engine/model metadata for tracing."""
+    engine: str = ""
+    model: str = ""
+
 GEMINI_MODEL = "gemini-2.0-flash"
 
 # Retry config for rate-limited (429) responses
@@ -88,7 +94,10 @@ async def _call_groq(prompt: str) -> str:
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
     )
-    return response.choices[0].message.content
+    result = _TaggedStr(response.choices[0].message.content)
+    result.engine = "groq"
+    result.model = settings.GROQ_MODEL
+    return result
 
 
 # Round-robin indices for OpenRouter key × model rotation
@@ -148,8 +157,13 @@ async def _call_openrouter(prompt: str) -> str:
                     raise RuntimeError(f"OpenRouter returned no choices: {error_msg}")
                 # Advance to next combo for next call
                 _openrouter_combo_index = (idx + 1) % total
+                result = data["choices"][0]["message"]["content"]
+                # Attach model info for tracing
+                result = _TaggedStr(result)
+                result.engine = "openrouter"
+                result.model = model
                 logger.info("OpenRouter OK: key #%d + %s", key_idx + 1, model)
-                return data["choices"][0]["message"]["content"]
+                return result
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code == 429:
                 last_exc = exc
@@ -171,7 +185,10 @@ async def _call_ollama(prompt: str, model: str | None = None) -> str:
         resp = await client.post(url, json=payload)
         resp.raise_for_status()
         data = resp.json()
-        return data.get("response", "")
+        result = _TaggedStr(data.get("response", ""))
+        result.engine = "ollama"
+        result.model = model or settings.OLLAMA_MODEL
+        return result
 
 
 async def generate(prompt: str) -> str:
@@ -249,8 +266,11 @@ async def generate_json(prompt: str) -> dict | list:
     """Generate and parse JSON from LLM output.
 
     Extracts JSON from the response even if wrapped in markdown code fences.
+    The returned dict/list has `.engine` and `.model` attributes if available.
     """
     raw = await generate(prompt)
+    engine = getattr(raw, "engine", "")
+    model = getattr(raw, "model", "")
 
     # Strip markdown code fences if present
     text = raw.strip()
@@ -262,4 +282,14 @@ async def generate_json(prompt: str) -> dict | list:
             lines = lines[:-1]
         text = "\n".join(lines)
 
-    return json.loads(text)
+    result = json.loads(text)
+    # Attach engine/model info for tracing
+    if isinstance(result, dict):
+        result["_engine"] = engine
+        result["_model"] = model
+    elif isinstance(result, list):
+        for item in result:
+            if isinstance(item, dict):
+                item["_engine"] = engine
+                item["_model"] = model
+    return result

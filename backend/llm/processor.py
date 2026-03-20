@@ -239,9 +239,12 @@ async def _save_llm_result(db, article_id: int, result: dict, article_row: dict 
     importance = result.get("importance") or 0
     related_links = result.get("related_links", [])
 
+    engine = result.get("_engine", "unknown")
+    model = result.get("_model", "unknown")
+
     # Reject garbled translations — retry with quality model
     if _is_garbled(title_zh or "") or _is_garbled(summary_zh or ""):
-        logger.warning("Garbled translation for article %d: %s, retrying with quality model", article_id, (title_zh or "")[:50])
+        logger.warning("GARBLED [%s/%s] article %d: %s", engine, model, article_id, (title_zh or "")[:50])
         if article_row:
             retry_result = await _retry_with_quality_model(article_row)
             if retry_result:
@@ -352,7 +355,9 @@ async def process_article_batch(article_rows: list[dict]) -> dict[str, int]:
             if aid in result_map:
                 await _save_llm_result(db, aid, result_map[aid], article_row=a)
                 title_zh = result_map[aid].get("title_zh", "")
-                logger.info("Batch processed article %d: %s", aid, title_zh[:40])
+                _engine = result_map[aid].get("_engine", "")
+                _model = result_map[aid].get("_model", "")
+                logger.info("Batch processed [%s/%s] article %d: %s", _engine, _model, aid, title_zh[:40])
                 processed += 1
             else:
                 logger.warning("Article %d missing from batch result, processing individually", aid)
