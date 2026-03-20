@@ -523,7 +523,7 @@ font-family: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Ro
 
 #### 4.9.2 简报生成流程
 
-1. 用户在页面点击 **「生成今日简报」** 按钮
+1. **自动触发**：每次定时抓取（06:00/10:00/17:00）+ LLM 处理完成后，自动生成/更新当日简报；也可在页面手动点击 **「生成今日简报」**
 2. 后端收集时间窗口内所有已处理文章（`title_zh IS NOT NULL AND importance > 0`）
 3. 调用 LLM 选出 **头条 Top 10**，选取维度：
    - **技术突破性**：新架构、SOTA 结果、重大能力飞跃
