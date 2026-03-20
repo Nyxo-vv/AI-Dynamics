@@ -97,16 +97,43 @@ def _titles_similar(a: str, b: str) -> bool:
 
 VALID_TAGS = {"research", "product", "opensource", "news", "funding", "policy", "community"}
 
-# Japanese kana + known garbled Chinese patterns
+# Japanese kana + CJK Extension A (very rare) + known garbled Chinese characters
 _GARBLED_RE = re.compile(
     r"[\u3040-\u309F\u30A0-\u30FF]"  # Hiragana + Katakana
-    r"|服加.*宝统|和提为访|罤|邭|犸|徛|帡|曈|穹|絷|穽|徖|雩|嶸|罷|昮"
+    r"|[\u3400-\u4DBF]"  # CJK Extension A (extremely rare chars)
+    r"|[罤邭犸徛帡曈穹絷穽徖雩嶸罷昮跼徟棜覄]"
+    r"|服加.*宝统|和提为访"
+)
+
+# Top ~500 most common Chinese characters (covers ~80% of modern text)
+# Used as a baseline to detect garbled text with too many rare characters
+_COMMON_CJK = set(
+    "的一是不了在人有我他这个们中来上大为和国地到以说时要就出会也你对生能而子"
+    "那得于着下自之年后作里家多日发成都然后那自己并第与从用但被十么所好过还"
+    "进没吗起想可开它两如些间长问行动方面定事前把同经分让先已次手新工外等给"
+    "候老实意很向感使种心道主力理明加当化因关什各去话儿更别法现回再打全找比"
+    "真看正太头只学通入做本知少门部分相点或政高电话书其市该张认将白体应名美"
+    "几水平文机数小表特许百完资见提论单西公指重建世思利走教海解安万信路转受"
+    "风条形件最位情带品步者反民众场业内系月今总保正被满每直区程放义制活度清"
+    "线别处治台原题必越设组示件术连记号南算基达证团华光往观身变共命员战科联"
+    "局北近八九七六五四三二持色据支无研究报告发展技术模型语言智能系统数据网"
+    "络服务器平台产品更新版本功能训练推理安全开源社区索引论文代码测试性能提升"
 )
 
 
 def _is_garbled(text: str) -> bool:
     """Check if translated text contains garbled/Japanese characters."""
-    return bool(_GARBLED_RE.search(text))
+    if not text:
+        return False
+    # Check known garbled patterns
+    if _GARBLED_RE.search(text):
+        return True
+    # Statistical check: too many rare CJK characters indicates garbled text
+    cjk_chars = [c for c in text if '\u4e00' <= c <= '\u9fff']
+    if len(cjk_chars) < 6:
+        return False
+    rare_count = sum(1 for c in cjk_chars if c not in _COMMON_CJK)
+    return rare_count / len(cjk_chars) > 0.3
 
 
 async def _find_similar_processed(db, norm_title: str, exclude_id: int):
